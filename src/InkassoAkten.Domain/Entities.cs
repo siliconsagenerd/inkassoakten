@@ -1,3 +1,5 @@
+using InkassoAkten.Domain.Exceptions;
+
 namespace InkassoAkten.Domain.Entities;
 
 public enum SchuldnerTyp
@@ -11,9 +13,9 @@ public enum AkteStatus
     Aktenanlage = 1,
     VorgerichtlicheMahnung = 2,
     RatenplanAktiv = 3,
-    MahnbescheidBeantragt = 4,
-    TituliertUeberwachung = 5,
-    Abgeschlossen = 6
+    GerichtlichesMahnverfahren = 4,
+    Erledigt = 5,
+    Geschlossen = 6
 }
 
 public class Mandant
@@ -69,14 +71,79 @@ public class InkassoAkte
     public int ForderungId { get; set; }
     public Forderung? Forderung { get; set; }
     public AkteStatus AkteStatus { get; set; } = AkteStatus.Aktenanlage;
+    public int Mahnstufe { get; private set; } = 1;
     public DateOnly VerzugsbeginnDatum { get; set; }
     public DateOnly ZinsenBerechnetBis { get; set; }
+    public decimal OffeneKosten { get; private set; }
+    public decimal OffeneZinsen { get; private set; }
+    public decimal OffeneHauptforderung { get; private set; }
+    public decimal Gesamtsaldo => OffeneKosten + OffeneZinsen + OffeneHauptforderung;
+    public decimal Restforderung => Gesamtsaldo;
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    public List<Ratenzahlungsplan> Ratenzahlungsplaene { get; set; } = new();
 
-    public void Validate()
+    public void SetzeOffeneBetrage(decimal kosten, decimal zinsen, decimal hauptforderung)
     {
-        if (string.IsNullOrWhiteSpace(Aktenzeichen))
-            throw new InvalidOperationException("Aktenzeichen must not be empty.");
+        OffeneKosten = kosten;
+        OffeneZinsen = zinsen;
+        OffeneHauptforderung = hauptforderung;
+    }
+
+    public void Validiere() { if (string.IsNullOrWhiteSpace(Aktenzeichen)) throw new InvalidOperationException("Aktenzeichen must not be empty."); }
+    public void Validate() => Validiere();
+
+    // state machine
+    public void StarteVorgerichtlicheMahnung()
+    {
+        if (AkteStatus != AkteStatus.Aktenanlage)
+            throw new InvalidTransitionException($"Cannot start dunning from {AkteStatus}.");
+        AkteStatus = AkteStatus.VorgerichtlicheMahnung;
+    }
+
+    public void ErhoeheMahnstufe()
+    {
+        if (AkteStatus != AkteStatus.VorgerichtlicheMahnung)
+            throw new InvalidTransitionException("Mahnstufe can only be raised during dunning.");
+        if (Mahnstufe >= 3)
+            throw new InvalidTransitionException("Mahnstufe cannot exceed 3.");
+        Mahnstufe += 1;
+    }
+
+    public void AktiviereRatenplan()
+    {
+        if (AkteStatus != AkteStatus.VorgerichtlicheMahnung)
+            throw new InvalidTransitionException($"Cannot activate installment plan from {AkteStatus}.");
+        AkteStatus = AkteStatus.RatenplanAktiv;
+    }
+
+    public void EskaliereZumGerichtlichenMahnverfahren(bool hatAktivenNichtDefaultedPlan)
+    {
+        if (hatAktivenNichtDefaultedPlan)
+            throw new InvalidTransitionException("Cannot escalate while an active, non-defaulted payment plan exists.");
+        if (AkteStatus != AkteStatus.VorgerichtlicheMahnung && AkteStatus != AkteStatus.RatenplanAktiv)
+            throw new InvalidTransitionException($"Cannot escalate from {AkteStatus}.");
+        AkteStatus = AkteStatus.GerichtlichesMahnverfahren;
+    }
+
+    public void MarkiereErledigt()
+    {
+        if (AkteStatus != AkteStatus.GerichtlichesMahnverfahren && AkteStatus != AkteStatus.RatenplanAktiv && AkteStatus != AkteStatus.VorgerichtlicheMahnung)
+            throw new InvalidTransitionException($"Cannot mark completed from {AkteStatus}.");
+        AkteStatus = AkteStatus.Erledigt;
+    }
+
+    public void Schliesse()
+    {
+        if (AkteStatus != AkteStatus.Erledigt)
+            throw new InvalidTransitionException($"Cannot close from {AkteStatus}.");
+        if (Restforderung > 0m)
+            throw new InvalidTransitionException("Cannot close Akte while Restforderung > 0.");
+        AkteStatus = AkteStatus.Geschlossen;
+    }
+
+    public bool HatAktivenNichtDefaultedRatenplan()
+    {
+        return Ratenzahlungsplaene.Any(p => !p.IstDefaulted);
     }
 }
 

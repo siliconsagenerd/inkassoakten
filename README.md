@@ -46,7 +46,7 @@ dotnet test InkassoAkten.sln
 
 ## Roadmap
 
-- Phase 2: § 367 BGB allocation, § 288 BGB interest, state machine, immutable ledger, concurrency
+- Phase 2: ✅ § 367 BGB allocation, § 288 BGB interest, state machine, immutable ledger, concurrency
 - Phase 3: Blazor UI, aging report, DevExpress evaluation, PDF statement
 - Future: bank-payment import and matching engine
 

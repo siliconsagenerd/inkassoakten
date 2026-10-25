@@ -64,6 +64,60 @@ namespace InkassoAkten.Infrastructure.Migrations
                     b.ToTable("AuditEintraege");
                 });
 
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.BasiszinsPeriode", b =>
+                {
+                    b.Property<int>("BasiszinsPeriodeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BasiszinsPeriodeId"));
+
+                    b.Property<decimal>("Basiszinssatz")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateOnly>("GueltigAb")
+                        .HasColumnType("date");
+
+                    b.HasKey("BasiszinsPeriodeId");
+
+                    b.ToTable("BasiszinsPerioden");
+                });
+
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.Buchung", b =>
+                {
+                    b.Property<long>("BuchungId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("BuchungId"));
+
+                    b.Property<int>("AkteId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("BetragHauptforderung")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BetragKosten")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BetragZinsen")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ZahlungId")
+                        .HasColumnType("int");
+
+                    b.HasKey("BuchungId");
+
+                    b.HasIndex("AkteId");
+
+                    b.HasIndex("ZahlungId");
+
+                    b.ToTable("Buchungen");
+                });
+
             modelBuilder.Entity("InkassoAkten.Domain.Entities.Forderung", b =>
                 {
                     b.Property<int>("ForderungId")
@@ -130,8 +184,20 @@ namespace InkassoAkten.Infrastructure.Migrations
                     b.Property<int>("ForderungId")
                         .HasColumnType("int");
 
+                    b.Property<int>("Mahnstufe")
+                        .HasColumnType("int");
+
                     b.Property<int>("MandantId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("OffeneHauptforderung")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OffeneKosten")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OffeneZinsen")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -191,6 +257,77 @@ namespace InkassoAkten.Infrastructure.Migrations
                     b.ToTable("Mandanten");
                 });
 
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.Rate", b =>
+                {
+                    b.Property<int>("RateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RateId"));
+
+                    b.Property<decimal>("Betrag")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("BezahltAmUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("Faelligkeitsdatum")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IstBezahlt")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PlanId")
+                        .HasColumnType("int");
+
+                    b.HasKey("RateId");
+
+                    b.HasIndex("PlanId");
+
+                    b.ToTable("Raten");
+                });
+
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.Ratenzahlungsplan", b =>
+                {
+                    b.Property<int>("PlanId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PlanId"));
+
+                    b.Property<int>("AkteId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DefaultedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Gesamtbetrag")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("InkassoAkteAkteId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IstDefaulted")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("PlanId");
+
+                    b.HasIndex("AkteId");
+
+                    b.HasIndex("InkassoAkteAkteId");
+
+                    b.ToTable("Ratenzahlungsplaene");
+                });
+
             modelBuilder.Entity("InkassoAkten.Domain.Entities.Schuldner", b =>
                 {
                     b.Property<int>("SchuldnerId")
@@ -239,6 +376,39 @@ namespace InkassoAkten.Infrastructure.Migrations
                     b.ToTable("Schuldner");
                 });
 
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.Zahlung", b =>
+                {
+                    b.Property<int>("ZahlungId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ZahlungId"));
+
+                    b.Property<int>("AkteId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Betrag")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime>("ZahlungsdatumUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("ZahlungId");
+
+                    b.HasIndex("AkteId");
+
+                    b.ToTable("Zahlungen");
+                });
+
             modelBuilder.Entity("InkassoAkten.Domain.Entities.Forderung", b =>
                 {
                     b.HasOne("InkassoAkten.Domain.Entities.Mandant", "Mandant")
@@ -283,6 +453,32 @@ namespace InkassoAkten.Infrastructure.Migrations
                     b.Navigation("Mandant");
 
                     b.Navigation("Schuldner");
+                });
+
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.Rate", b =>
+                {
+                    b.HasOne("InkassoAkten.Domain.Entities.Ratenzahlungsplan", null)
+                        .WithMany("Raten")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.Ratenzahlungsplan", b =>
+                {
+                    b.HasOne("InkassoAkten.Domain.Entities.InkassoAkte", null)
+                        .WithMany("Ratenzahlungsplaene")
+                        .HasForeignKey("InkassoAkteAkteId");
+                });
+
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.InkassoAkte", b =>
+                {
+                    b.Navigation("Ratenzahlungsplaene");
+                });
+
+            modelBuilder.Entity("InkassoAkten.Domain.Entities.Ratenzahlungsplan", b =>
+                {
+                    b.Navigation("Raten");
                 });
 #pragma warning restore 612, 618
         }
