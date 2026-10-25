@@ -1,0 +1,34 @@
+name: .NET CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore InkassoAkten.sln
+
+    - name: Build solution
+      run: dotnet build InkassoAkten.sln --no-restore --configuration Release
+
+    - name: Run Unit Tests
+      run: dotnet test tests/InkassoAkten.Domain.Tests/InkassoAkten.Domain.Tests.csproj --no-build --configuration Release --verbosity normal
+
+    - name: Run Integration Tests
+      run: dotnet test tests/InkassoAkten.IntegrationTests/InkassoAkten.IntegrationTests.csproj --no-build --configuration Release --verbosity normal
+
+    - name: Publish Web Project
+      run: dotnet publish src/InkassoAkten.Web/InkassoAkten.Web.csproj --no-build --configuration Release --output ./publish
