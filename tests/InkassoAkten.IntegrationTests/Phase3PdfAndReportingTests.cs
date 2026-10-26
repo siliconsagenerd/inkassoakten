@@ -156,7 +156,7 @@ public class Phase3PdfAndReportingTests
 
         var akte = new InkassoAkte
         {
-            Aktenzeichen = $"BOUNDARY-{daysOverdue}-{Guid.NewGuid():N}",
+            Aktenzeichen = $"B{daysOverdue}-{Guid.NewGuid().ToString("N")[..8]}",
             MandantId = mandant.MandantId,
             SchuldnerId = schuldner.SchuldnerId,
             ForderungId = forderung.ForderungId,
