@@ -1,8 +1,13 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
 @using InkassoAkten.Application.Interfaces
+@using InkassoAkten.Web
 @inject AuthenticationStateProvider AuthStateProvider
-@inject IOperatorContext OperatorContext
+@inject IOperatorContextInitializer OperatorContext
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor
+@inject PersistentComponentState ApplicationState
 
 <div class="alert alert-warning mb-0 rounded-0 text-center" role="alert">
     Technische Demo mit synthetischen Daten — keine Rechtsberatung.
@@ -19,6 +24,7 @@
             <AuthorizeView>
                 <Authorized>
                     <form method="post" action="/auth/logout" class="d-inline">
+                        <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryToken" />
                         <button class="btn btn-sm btn-outline-secondary" type="submit">Abmelden (@context.User.Identity?.Name)</button>
                     </form>
                 </Authorized>
@@ -41,9 +47,31 @@
 </div>
 
 @code {
+    private string? antiforgeryToken;
+    private PersistingComponentStateSubscription? subscription;
+
     protected override async Task OnInitializedAsync()
     {
+        subscription = ApplicationState.RegisterOnPersisting(PersistState);
+        if (ApplicationState.TryTakeFromJson<string>("antiforgeryToken", out var t))
+        {
+            antiforgeryToken = t;
+        }
+        else if (HttpContextAccessor.HttpContext is not null)
+        {
+            var tokens = Antiforgery.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+            antiforgeryToken = tokens.RequestToken;
+        }
+
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         OperatorContext.SetOperator(state.User.Identity?.IsAuthenticated == true && state.User.IsInRole("Operator"));
     }
+
+    private Task PersistState()
+    {
+        ApplicationState.PersistAsJson("antiforgeryToken", antiforgeryToken);
+        return Task.CompletedTask;
+    }
+
+    public void Dispose() => subscription?.Dispose();
 }

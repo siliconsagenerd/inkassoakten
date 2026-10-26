@@ -1,5 +1,10 @@
 @page "/login"
-@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
+@inject PersistentComponentState ApplicationState
+@implements IDisposable
 
 <PageTitle>Operator-Anmeldung</PageTitle>
 
@@ -11,6 +16,7 @@
 }
 
 <form method="post" action="/auth/login">
+    <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryToken" />
     <div class="mb-3">
         <label class="form-label">Benutzername</label>
         <input class="form-control" type="text" name="username" autocomplete="username" />
@@ -27,4 +33,28 @@
     public string? Error { get; set; }
 
     private bool hasError => Error == "1";
+    private string? antiforgeryToken;
+    private PersistingComponentStateSubscription? subscription;
+
+    protected override void OnInitialized()
+    {
+        subscription = ApplicationState.RegisterOnPersisting(PersistState);
+        if (ApplicationState.TryTakeFromJson<string>("antiforgeryToken", out var t))
+        {
+            antiforgeryToken = t;
+        }
+        else if (HttpContextAccessor.HttpContext is not null)
+        {
+            var tokens = Antiforgery.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+            antiforgeryToken = tokens.RequestToken;
+        }
+    }
+
+    private Task PersistState()
+    {
+        ApplicationState.PersistAsJson("antiforgeryToken", antiforgeryToken);
+        return Task.CompletedTask;
+    }
+
+    public void Dispose() => subscription?.Dispose();
 }

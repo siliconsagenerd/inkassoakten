@@ -13,13 +13,36 @@ public class InkassoAktenDbContext : DbContext, IUnitOfWork
         _operatorContext = operatorContext;
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    private void GuardWrites()
     {
         if (_operatorContext is not null && !_operatorContext.CanWrite && ChangeTracker.HasChanges())
         {
             throw new UnauthorizedAccessException("Operator authorization required for persisted changes.");
         }
+    }
+
+    public override int SaveChanges()
+    {
+        GuardWrites();
+        return base.SaveChanges();
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        GuardWrites();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        GuardWrites();
         return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        GuardWrites();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     public DbSet<Mandant> Mandanten => Set<Mandant>();

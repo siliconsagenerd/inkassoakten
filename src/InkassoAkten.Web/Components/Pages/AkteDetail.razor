@@ -1,4 +1,5 @@
 @page "/akten/{id:int}"
+@implements IDisposable
 @rendermode InteractiveServer
 @using InkassoAkten.Domain.Entities
 @using InkassoAkten.Domain.Strategies
@@ -242,6 +243,22 @@ else
         await LoadAsync();
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         isOperator = state.User.Identity?.IsAuthenticated == true && state.User.IsInRole("Operator");
+        AuthStateProvider.AuthenticationStateChanged += OnAuthStateChanged;
+    }
+
+    private void OnAuthStateChanged(Task<AuthenticationState> task)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            var state = await task;
+            isOperator = state.User.Identity?.IsAuthenticated == true && state.User.IsInRole("Operator");
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        AuthStateProvider.AuthenticationStateChanged -= OnAuthStateChanged;
     }
 
     private async Task LoadAsync()

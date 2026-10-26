@@ -27,6 +27,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.AccessDeniedPath = "/login";
         options.SlidingExpiration = true;
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.SameSite = SameSiteMode.Lax;
     });
 
 builder.Services.AddAuthorization(options =>
@@ -71,6 +74,13 @@ if (seedDemo)
     var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
+    // Explicit, non-web seed execution scope: bypass the web operator guard only here.
+    var operatorContext = scope.ServiceProvider.GetService<IOperatorContextInitializer>();
+    if (operatorContext is not null)
+    {
+        operatorContext.BypassWrites = true;
+    }
+
     try
     {
         logger.LogInformation("Applying database migrations before demo seed.");
@@ -97,9 +107,9 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
 app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "InkassoAkten" }));
@@ -175,13 +185,13 @@ app.MapPost("/auth/login", async (HttpContext http, IConfiguration config) =>
     var principal = new ClaimsPrincipal(identity);
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
     return Results.Redirect("/");
-}).RequireRateLimiting("login").DisableAntiforgery();
+}).RequireRateLimiting("login");
 
 app.MapPost("/auth/logout", async (HttpContext http) =>
 {
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/");
-}).DisableAntiforgery();
+});
 
 app.MapRazorComponents<InkassoAkten.Web.Components.App>()
     .AddInteractiveServerRenderMode();

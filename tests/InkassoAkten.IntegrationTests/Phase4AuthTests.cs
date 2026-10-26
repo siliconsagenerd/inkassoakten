@@ -18,13 +18,15 @@ public class Phase4AuthTests
 
     public Phase4AuthTests(SqlServerFixture fixture) => _fixture = fixture;
 
-    private WebApplicationFactory<Program> CreateFactory(bool requireAuth, bool asOperator, string password = "TestPass!123")
+    private WebApplicationFactory<Program> CreateFactory(bool requireAuth, bool asOperator, string password = "TestPass!123", bool setSecurity = true, string environment = "Development")
     {
         return new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.UseSetting("environment", environment);
                 builder.UseSetting("ConnectionStrings:DefaultConnection", _fixture.ConnectionString);
-                builder.UseSetting("Security:RequireOperatorAuth", requireAuth.ToString().ToLower());
+                if (setSecurity)
+                    builder.UseSetting("Security:RequireOperatorAuth", requireAuth.ToString().ToLower());
                 builder.UseSetting("Auth:Operator:Username", "operator");
                 builder.UseSetting("Auth:Operator:Password", password);
                 if (asOperator)
@@ -53,6 +55,18 @@ public class Phase4AuthTests
     }
 
     [Fact]
+    public async Task Missing_Security_Configuration_Does_Not_Enable_Anonymous_Writes()
+    {
+        using var factory = CreateFactory(requireAuth: false, asOperator: false, setSecurity: false, environment: "Production");
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+
+        db.Mandanten.Add(new Mandant { Firmenname = "Missing Config Test" });
+        var act = async () => await db.SaveChangesAsync();
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
     public async Task Operator_Persisted_Mutation_Succeeds_When_Auth_Required()
     {
         using var factory = CreateFactory(requireAuth: true, asOperator: true);
@@ -65,7 +79,58 @@ public class Phase4AuthTests
     }
 
     [Fact]
-    public async Task Login_Succeeds_With_Valid_Credentials()
+    public async Task Login_Succeeds_With_Valid_Credentials_And_Antiforgery_Token()
+    {
+        using var factory = CreateFactory(requireAuth: true, asOperator: false, password: "TestPass!123");
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var getTokenResponse = await client.GetAsync("/login");
+        var html = await getTokenResponse.Content.ReadAsStringAsync();
+        var match = System.Text.RegularExpressions.Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
+        match.Success.Should().BeTrue();
+        var token = match.Groups[1].Value;
+
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["username"] = "operator",
+            ["password"] = "TestPass!123",
+            ["__RequestVerificationToken"] = token
+        });
+        var response = await client.PostAsync("/auth/login", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.ToString().Should().Be("/");
+    }
+
+    [Fact]
+    public async Task Login_RateLimit_Exhaustion_Returns_429()
+    {
+        using var factory = CreateFactory(requireAuth: true, asOperator: false, password: "TestPass!123");
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        HttpStatusCode last = HttpStatusCode.OK;
+        for (int i = 0; i < 7; i++)
+        {
+            var getTokenResponse = await client.GetAsync("/login");
+            var html = await getTokenResponse.Content.ReadAsStringAsync();
+            var match = System.Text.RegularExpressions.Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
+            var token = match.Success ? match.Groups[1].Value : string.Empty;
+
+            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["username"] = "operator",
+                ["password"] = "wrong",
+                ["__RequestVerificationToken"] = token
+            });
+            var response = await client.PostAsync("/auth/login", content);
+            last = response.StatusCode;
+            if (response.StatusCode == HttpStatusCode.TooManyRequests) break;
+        }
+        last.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
+    [Fact]
+    public async Task Login_Rejected_Without_Antiforgery_Token()
     {
         using var factory = CreateFactory(requireAuth: true, asOperator: false, password: "TestPass!123");
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
@@ -77,10 +142,8 @@ public class Phase4AuthTests
         });
         var response = await client.PostAsync("/auth/login", content);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        response.Headers.Location!.ToString().Should().Be("/");
-        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
-        cookies!.Should().Contain(c => c.Contains("InkassoAkten.Operator"));
+        // Antiforgery validation fails -> 400
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -89,10 +152,16 @@ public class Phase4AuthTests
         using var factory = CreateFactory(requireAuth: true, asOperator: false, password: "TestPass!123");
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
+        var getTokenResponse = await client.GetAsync("/login");
+        var html = await getTokenResponse.Content.ReadAsStringAsync();
+        var match = System.Text.RegularExpressions.Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
+        var token = match.Groups[1].Value;
+
         var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["username"] = "operator",
-            ["password"] = "wrong"
+            ["password"] = "wrong",
+            ["__RequestVerificationToken"] = token
         });
         var response = await client.PostAsync("/auth/login", content);
 

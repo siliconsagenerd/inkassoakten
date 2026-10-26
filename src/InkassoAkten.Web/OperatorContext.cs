@@ -3,7 +3,18 @@ using Microsoft.AspNetCore.Http;
 
 namespace InkassoAkten.Web;
 
-public class OperatorContext : IOperatorContext
+/// <summary>
+/// Internal initializer surface. Not part of the public IOperatorContext so ordinary
+/// web components/services cannot grant themselves operator status or enable a
+/// write bypass. Used only by the trusted login flow and the explicit seed/test scope.
+/// </summary>
+internal interface IOperatorContextInitializer
+{
+    void SetOperator(bool value);
+    bool BypassWrites { get; set; }
+}
+
+public class OperatorContext : IOperatorContext, IOperatorContextInitializer
 {
     private readonly IHttpContextAccessor _http;
     private readonly IConfiguration _config;
@@ -13,7 +24,8 @@ public class OperatorContext : IOperatorContext
     {
         _http = http;
         _config = config;
-        RequireOperatorAuth = _config.GetValue<bool>("Security:RequireOperatorAuth");
+        // Fail-closed: missing configuration defaults to requiring operator auth.
+        RequireOperatorAuth = _config.GetValue("Security:RequireOperatorAuth", true);
 
         var user = _http.HttpContext?.User;
         if (user is not null)
@@ -23,7 +35,7 @@ public class OperatorContext : IOperatorContext
     }
 
     public bool IsOperator => _isOperator;
-    public void SetOperator(bool value) => _isOperator = value;
+    void IOperatorContextInitializer.SetOperator(bool value) => _isOperator = value;
     public bool BypassWrites { get; set; }
     public bool RequireOperatorAuth { get; }
     public bool CanWrite => BypassWrites || !RequireOperatorAuth || IsOperator;
