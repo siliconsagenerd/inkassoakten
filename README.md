@@ -52,12 +52,10 @@ The migration command uses the default connection string `Server=localhost,1433;
 The web app does not seed automatically. After migrations, seed the synthetic demo data with:
 
 ```bash
-TEST_SQLSERVER_CONNECTIONSTRING="Server=localhost,1433;Database=InkassoDb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;Encrypt=False;" \
-dotnet test tests/InkassoAkten.IntegrationTests/InkassoAkten.IntegrationTests.csproj \
-  --filter "FullyQualifiedName~Seed_Creates_Exactly_Five_InkassoAkten"
+dotnet run --project src/InkassoAkten.Web -- --seed-demo
 ```
 
-This command is only for an empty or disposable demo database. It applies migrations and inserts the five seeded cases when the case table is empty.
+This command applies pending migrations, inserts the five synthetic cases when the case table is empty, and makes no changes when the expected demo dataset is already present. It refuses databases that contain other case data. Use it only for an empty or disposable demo database.
 
 ## Run the Web App
 

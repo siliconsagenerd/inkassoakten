@@ -18,7 +18,33 @@ builder.Services.AddScoped<IPdfStatementService, PdfStatementService>();
 builder.Services.AddScoped<IAgingReportService, AgingReportService>();
 builder.Services.AddScoped<ZahlungPostingService>();
 
+var seedDemo = args.Any(a => string.Equals(a, "--seed-demo", StringComparison.OrdinalIgnoreCase));
+
 var app = builder.Build();
+
+if (seedDemo)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        logger.LogInformation("Applying database migrations before demo seed.");
+        await db.Database.MigrateAsync();
+
+        logger.LogInformation("Seeding synthetic demo data if the database is empty.");
+        await DatabaseSeeder.SeedDemoAsync(db);
+
+        logger.LogInformation("Demo seed completed. No credentials or connection strings were logged.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Demo seed failed. No partial seed data should remain.");
+        throw;
+    }
+    return;
+}
 
 if (!app.Environment.IsDevelopment())
 {

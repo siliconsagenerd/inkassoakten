@@ -5,8 +5,28 @@ namespace InkassoAkten.Infrastructure;
 
 public static class DatabaseSeeder
 {
+    public static readonly IReadOnlySet<string> ExpectedDemoAktenzeichen =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ADV-2026-0001",
+            "ADV-2026-0002",
+            "ADV-2026-0003",
+            "ADV-2026-0004",
+            "ADV-2026-0005"
+        };
+
+    // Minimum structural records expected for a compatible already-seeded demo dataset.
+    // Mutable balances/statuses are intentionally NOT compared.
+    public const int MinimumDemoMandanten = 2;
+    public const int MinimumDemoSchuldner = 5;
+    public const int MinimumDemoForderungen = 5;
+    public const int MinimumDemoBasiszinsPerioden = 4;
+
     public static async Task SeedAsync(InkassoAktenDbContext context, CancellationToken cancellationToken = default)
     {
+        var transaction = await BeginTransactionIfNeededAsync(context, cancellationToken);
+        try
+        {
         if (!await context.InkassoAkten.AnyAsync(cancellationToken))
         {
             var mandant1 = new Mandant { Firmenname = "Beispiel GmbH", IstAktiv = true };
@@ -70,5 +90,125 @@ public static class DatabaseSeeder
             );
             await context.SaveChangesAsync(cancellationToken);
         }
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+            throw;
+        }
+    }
+
+    public static async Task SeedDemoAsync(InkassoAktenDbContext context, CancellationToken cancellationToken = default)
+    {
+        // Schema validation: require a migrated database. No EnsureCreated.
+        if (!await context.Database.CanConnectAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Cannot connect to the database. Ensure SQL Server is running and the connection string is valid.");
+        }
+
+        var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+        if (pending.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "The database is not fully migrated. Pending migrations: " + string.Join(", ", pending) +
+                ". Run migrations before seeding.");
+        }
+
+        var transaction = await BeginTransactionIfNeededAsync(context, cancellationToken);
+        try
+        {
+            var existingAktenzeichen = await context.InkassoAkten
+                .Select(a => a.Aktenzeichen)
+                .ToListAsync(cancellationToken);
+
+            if (existingAktenzeichen.Count == 0)
+            {
+                await SeedAsync(context, cancellationToken);
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+                return;
+            }
+
+            await ValidateCompatibleDemoDatasetAsync(context, existingAktenzeichen, cancellationToken);
+
+            // Already compatible: do nothing. Preserves later payments/changes.
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+            throw;
+        }
+    }
+
+    private static async Task ValidateCompatibleDemoDatasetAsync(InkassoAktenDbContext context, List<string> existingAktenzeichen, CancellationToken cancellationToken)
+    {
+        var existingSet = new HashSet<string>(existingAktenzeichen, StringComparer.Ordinal);
+        if (!existingSet.SetEquals(ExpectedDemoAktenzeichen))
+        {
+            throw new InvalidOperationException(
+                "The database already contains case data that does not match the synthetic demo dataset. " +
+                "No data was changed.");
+        }
+
+        var akten = await context.InkassoAkten
+            .Include(a => a.Mandant)
+            .Include(a => a.Schuldner)
+            .Include(a => a.Forderung)
+            .ToListAsync(cancellationToken);
+
+        if (akten.Count != ExpectedDemoAktenzeichen.Count)
+        {
+            throw new InvalidOperationException("The demo dataset is incomplete: expected " + ExpectedDemoAktenzeichen.Count + " cases. No data was changed.");
+        }
+
+        foreach (var akte in akten)
+        {
+            if (akte.Mandant is null || akte.Schuldner is null || akte.Forderung is null)
+            {
+                throw new InvalidOperationException("The demo dataset is incomplete: a case is missing required related records. No data was changed.");
+            }
+        }
+
+        var mandantenCount = await context.Mandanten.CountAsync(cancellationToken);
+        var schuldnerCount = await context.Schuldner.CountAsync(cancellationToken);
+        var forderungenCount = await context.Forderungen.CountAsync(cancellationToken);
+        var basiszinsCount = await context.BasiszinsPerioden.CountAsync(cancellationToken);
+
+        if (mandantenCount < MinimumDemoMandanten ||
+            schuldnerCount < MinimumDemoSchuldner ||
+            forderungenCount < MinimumDemoForderungen ||
+            basiszinsCount < MinimumDemoBasiszinsPerioden)
+        {
+            throw new InvalidOperationException(
+                "The demo dataset is incomplete: required seed records are missing " +
+                "(mandanten=" + mandantenCount + ", schuldner=" + schuldnerCount +
+                ", forderungen=" + forderungenCount + ", basiszins=" + basiszinsCount + "). No data was changed.");
+        }
+    }
+
+    private static async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> BeginTransactionIfNeededAsync(InkassoAktenDbContext context, CancellationToken cancellationToken)
+    {
+        if (context.Database.CurrentTransaction is not null)
+        {
+            return null;
+        }
+        return await context.Database.BeginTransactionAsync(cancellationToken);
     }
 }

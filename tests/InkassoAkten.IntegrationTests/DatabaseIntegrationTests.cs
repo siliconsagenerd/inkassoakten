@@ -231,6 +231,7 @@ public class DatabaseIntegrationTests
 
     private InkassoAktenDbContext CreateContext()
     {
+        TestDatabaseGuard.AssertSafeForDestructiveTests(_fixture.ConnectionString);
         var options = new DbContextOptionsBuilder<InkassoAktenDbContext>()
             .UseSqlServer(_fixture.ConnectionString)
             .Options;
