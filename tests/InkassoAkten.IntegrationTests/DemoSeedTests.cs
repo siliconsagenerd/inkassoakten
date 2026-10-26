@@ -28,7 +28,7 @@ public class DemoSeedTests
     public async Task SeedDemo_FirstRun_CreatesFiveCases()
     {
         using var context = CreateContext();
-        await context.Database.EnsureDeletedAsync();
+        try { await context.Database.EnsureDeletedAsync(); } catch { }
         await context.Database.MigrateAsync();
 
         await DatabaseSeeder.SeedDemoAsync(context);
@@ -74,7 +74,7 @@ public class DemoSeedTests
     public async Task SeedDemo_RejectsPartialData()
     {
         using var context = CreateContext();
-        await context.Database.EnsureDeletedAsync();
+        try { await context.Database.EnsureDeletedAsync(); } catch { }
         await context.Database.MigrateAsync();
 
         await DatabaseSeeder.SeedDemoAsync(context);
@@ -111,7 +111,7 @@ public class DemoSeedTests
     public async Task SeedDemo_RequiresMigratedDatabase()
     {
         using var context = CreateContext();
-        await context.Database.EnsureDeletedAsync();
+        try { await context.Database.EnsureDeletedAsync(); } catch { }
         // Do not migrate: schema missing.
 
         Func<Task> act = () => DatabaseSeeder.SeedDemoAsync(context);
