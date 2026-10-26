@@ -123,6 +123,9 @@ else
 
     private async Task ReloadAsync()
     {
+        if (isLoading)
+            return;
+
         isLoading = true;
         errorMessage = null;
         try

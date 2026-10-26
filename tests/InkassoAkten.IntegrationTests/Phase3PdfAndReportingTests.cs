@@ -82,6 +82,30 @@ public class Phase3PdfAndReportingTests
     }
 
     [Fact]
+    public async Task Pdf_Endpoint_Returns_NotFound_For_Missing_Case()
+    {
+        var conn = _fixture.ConnectionString;
+
+        using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("ConnectionStrings:DefaultConnection", conn);
+            });
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+            await db.Database.MigrateAsync();
+            await DatabaseSeeder.SeedAsync(db);
+        }
+
+        var client = factory.CreateClient();
+        var response = await client.GetAsync("/api/akten/999999/pdf");
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Aging_Report_Buckets_Known_Dates_Correctly()
     {
         var conn = _fixture.ConnectionString;

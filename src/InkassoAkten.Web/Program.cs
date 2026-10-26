@@ -41,7 +41,9 @@ app.MapGet("/api/akten/{id:int}/pdf", async (int id, InkassoAktenDbContext db, I
         .Include(a => a.Forderung)
         .FirstOrDefaultAsync(a => a.AkteId == id);
 
-    if (akte == null) return Results.NotFound();
+    if (akte is null) return Results.NotFound();
+    if (akte.Mandant is null || akte.Schuldner is null || akte.Forderung is null)
+        return Results.Problem("Case data is incomplete.", statusCode: 500);
 
     var buchungen = await db.Buchungen
         .Where(b => b.AkteId == id)

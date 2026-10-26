@@ -106,7 +106,7 @@ else
                             <td>@b.BetragKosten.ToString("C", de)</td>
                             <td>@b.BetragZinsen.ToString("C", de)</td>
                             <td>@b.BetragHauptforderung.ToString("C", de)</td>
-                            <td>@(b.BetragKosten + b.BetragZinsen + b.BetragHauptforderung).ToString("C", de)</td>
+                            <td>@((b.BetragKosten + b.BetragZinsen + b.BetragHauptforderung).ToString("C", de))</td>
                         </tr>
                     }
                 </tbody>
