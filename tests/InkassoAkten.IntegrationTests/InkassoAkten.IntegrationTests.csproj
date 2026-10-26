@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="FluentAssertions" Version="6.12.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
@@ -28,6 +29,7 @@
     <ProjectReference Include="..\..\src\InkassoAkten.Domain\InkassoAkten.Domain.csproj" />
     <ProjectReference Include="..\..\src\InkassoAkten.Application\InkassoAkten.Application.csproj" />
     <ProjectReference Include="..\..\src\InkassoAkten.Infrastructure\InkassoAkten.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\InkassoAkten.Web\InkassoAkten.Web.csproj" />
   </ItemGroup>
 
 </Project>

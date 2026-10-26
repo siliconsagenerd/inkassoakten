@@ -1,0 +1,336 @@
+@page "/akten/{id:int}"
+@rendermode InteractiveServer
+@using InkassoAkten.Domain.Entities
+@using InkassoAkten.Domain.Strategies
+@using InkassoAkten.Domain.ValueObjects
+@using InkassoAkten.Domain.Exceptions
+@using InkassoAkten.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@inject InkassoAktenDbContext Db
+@inject ZahlungPostingService PostingService
+
+<PageTitle>Akte @id</PageTitle>
+
+@if (isLoading)
+{
+    <p>Laden…</p>
+}
+else if (akte is null)
+{
+    <div class="alert alert-warning">Akte nicht gefunden.</div>
+}
+else
+{
+    <h1>@akte.Aktenzeichen</h1>
+    <p class="text-muted">@akte.Mandant?.Firmenname · @akte.Schuldner?.NachnameOderFirma, @akte.Schuldner?.Vorname</p>
+
+    <div class="mb-3">
+        <a class="btn btn-secondary me-2" href="/api/akten/@akte.AkteId/pdf" target="_blank">PDF herunterladen</a>
+        <span class="badge bg-secondary">@akte.AkteStatus</span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(actionError))
+    {
+        <div class="alert alert-danger">@actionError</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(actionMessage))
+    {
+        <div class="alert alert-success">@actionMessage</div>
+    }
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><button class="nav-link @(activeTab=="Uebersicht"?"active":"")" @onclick='() => activeTab="Uebersicht"'>Übersicht</button></li>
+        <li class="nav-item"><button class="nav-link @(activeTab=="Ledger"?"active":"")" @onclick='() => activeTab="Ledger"'>Ledger</button></li>
+        <li class="nav-item"><button class="nav-link @(activeTab=="Raten"?"active":"")" @onclick='() => activeTab="Raten"'>Ratenplan</button></li>
+        <li class="nav-item"><button class="nav-link @(activeTab=="Audit"?"active":"")" @onclick='() => activeTab="Audit"'>Audit</button></li>
+        <li class="nav-item"><button class="nav-link @(activeTab=="Zahlung"?"active":"")" @onclick='() => activeTab="Zahlung"'>Zahlung</button></li>
+    </ul>
+
+    @if (activeTab == "Uebersicht")
+    {
+        <table class="table">
+            <tbody>
+                <tr><th>Offene Kosten</th><td>@akte.OffeneKosten.ToString("C", de)</td></tr>
+                <tr><th>Offene Zinsen</th><td>@akte.OffeneZinsen.ToString("C", de)</td></tr>
+                <tr><th>Offene Hauptforderung</th><td>@akte.OffeneHauptforderung.ToString("C", de)</td></tr>
+                <tr><th>Gesamtsaldo</th><td><strong>@akte.Gesamtsaldo.ToString("C", de)</strong></td></tr>
+            </tbody>
+        </table>
+
+        <h5>Statusaktionen</h5>
+        <div class="btn-group flex-wrap">
+            @if (akte.AkteStatus == AkteStatus.Aktenanlage)
+            {
+                <button class="btn btn-outline-primary" @onclick="StartDunning" disabled="@isActionRunning">Vorgerichtliche Mahnung starten</button>
+            }
+            @if (akte.AkteStatus == AkteStatus.VorgerichtlicheMahnung)
+            {
+                <button class="btn btn-outline-primary" @onclick="RaiseDunning" disabled="@isActionRunning">Mahnstufe erhöhen</button>
+                <button class="btn btn-outline-primary" @onclick="ActivatePlan" disabled="@isActionRunning">Ratenplan aktivieren</button>
+                <button class="btn btn-outline-warning" @onclick="Escalate" disabled="@isActionRunning">Zum gerichtlichen Mahnverfahren</button>
+                <button class="btn btn-outline-success" @onclick="MarkDone" disabled="@isActionRunning">Erledigt markieren</button>
+            }
+            @if (akte.AkteStatus == AkteStatus.RatenplanAktiv)
+            {
+                <button class="btn btn-outline-warning" @onclick="Escalate" disabled="@isActionRunning">Zum gerichtlichen Mahnverfahren</button>
+                <button class="btn btn-outline-success" @onclick="MarkDone" disabled="@isActionRunning">Erledigt markieren</button>
+            }
+            @if (akte.AkteStatus == AkteStatus.GerichtlichesMahnverfahren)
+            {
+                <button class="btn btn-outline-success" @onclick="MarkDone" disabled="@isActionRunning">Erledigt markieren</button>
+            }
+            @if (akte.AkteStatus == AkteStatus.Erledigt)
+            {
+                <button class="btn btn-outline-dark" @onclick="Close" disabled="@(isActionRunning || akte.Gesamtsaldo > 0m)">Schließen</button>
+            }
+        </div>
+    }
+    else if (activeTab == "Ledger")
+    {
+        if (buchungen.Count == 0)
+        {
+            <p class="text-muted">Keine Buchungen vorhanden.</p>
+        }
+        else
+        {
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>Datum</th><th>Kosten</th><th>Zinsen</th><th>Hauptforderung</th><th>Gesamt</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in buchungen)
+                    {
+                        <tr>
+                            <td>@b.CreatedAtUtc.ToString("dd.MM.yyyy HH:mm", de)</td>
+                            <td>@b.BetragKosten.ToString("C", de)</td>
+                            <td>@b.BetragZinsen.ToString("C", de)</td>
+                            <td>@b.BetragHauptforderung.ToString("C", de)</td>
+                            <td>@(b.BetragKosten + b.BetragZinsen + b.BetragHauptforderung).ToString("C", de)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+    else if (activeTab == "Raten")
+    {
+        if (plaene.Count == 0)
+        {
+            <p class="text-muted">Keine Ratenpläne vorhanden.</p>
+        }
+        else
+        {
+            @foreach (var p in plaene)
+            {
+                <div class="card mb-3">
+                    <div class="card-header">Plan @p.PlanId · Gesamt @p.Gesamtbetrag.ToString("C", de) · @(p.IstDefaulted ? "Defaulted" : "Aktiv")</div>
+                    <div class="card-body">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Fälligkeit</th><th>Betrag</th><th>Status</th></tr></thead>
+                            <tbody>
+                                @foreach (var r in p.Raten)
+                                {
+                                    <tr>
+                                        <td>@r.Faelligkeitsdatum.ToString("dd.MM.yyyy", de)</td>
+                                        <td>@r.Betrag.ToString("C", de)</td>
+                                        <td>@(r.IstBezahlt ? "Bezahlt" : "Offen")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        }
+    }
+    else if (activeTab == "Audit")
+    {
+        if (audits.Count == 0)
+        {
+            <p class="text-muted">Keine Audit-Einträge vorhanden.</p>
+        }
+        else
+        {
+            <table class="table table-sm">
+                <thead><tr><th>Zeit</th><th>Aktion</th><th>Entität</th><th>Werte</th></tr></thead>
+                <tbody>
+                    @foreach (var a in audits)
+                    {
+                        <tr>
+                            <td>@a.ZeitstempelUtc.ToString("dd.MM.yyyy HH:mm", de)</td>
+                            <td>@a.Aktion</td>
+                            <td>@a.EntitaetName #@a.EntitaetId</td>
+                            <td>@a.NeuWerteJson</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+    else if (activeTab == "Zahlung")
+    {
+        <div class="mb-3">
+            <label class="form-label">Betrag</label>
+            <input class="form-control" type="number" step="0.01" @bind="paymentAmount" @bind:event="oninput" @onchange="UpdatePreview" />
+        </div>
+
+        @if (preview is not null)
+        {
+            <div class="alert alert-info">
+                Vorschau: Kosten @preview.GetilgteKosten.ToString("C", de), Zinsen @preview.GetilgteZinsen.ToString("C", de), Hauptforderung @preview.GetilgteHauptforderung.ToString("C", de)
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(paymentError))
+        {
+            <div class="alert alert-danger">@paymentError</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(paymentMessage))
+        {
+            <div class="alert alert-success">@paymentMessage</div>
+        }
+
+        <button class="btn btn-primary" @onclick="PostPayment" disabled="@(isPosting || paymentAmount <= 0m)">Zahlung verbuchen</button>
+        @if (isPosting)
+        {
+            <span class="ms-2">Verbuche…</span>
+        }
+    }
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+
+    private static readonly CultureInfo de = CultureInfo.GetCultureInfo("de-DE");
+
+    private InkassoAkte? akte;
+    private List<Buchung> buchungen = new();
+    private List<AuditEintrag> audits = new();
+    private List<Ratenzahlungsplan> plaene = new();
+    private bool isLoading = true;
+    private string activeTab = "Uebersicht";
+    private string? actionError;
+    private string? actionMessage;
+    private bool isActionRunning;
+
+    private decimal paymentAmount;
+    private bool isPosting;
+    private string? paymentError;
+    private string? paymentMessage;
+    private TilgungsAllocation? preview;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        actionError = null;
+        try
+        {
+            akte = await Db.InkassoAkten
+                .Include(a => a.Mandant)
+                .Include(a => a.Schuldner)
+                .Include(a => a.Forderung)
+                .FirstOrDefaultAsync(a => a.AkteId == id);
+
+            if (akte is not null)
+            {
+                buchungen = await Db.Buchungen.Where(b => b.AkteId == id).OrderBy(b => b.CreatedAtUtc).ToListAsync();
+                var zahlungIds = await Db.Zahlungen.Where(z => z.AkteId == id).Select(z => z.ZahlungId).ToListAsync();
+                audits = await Db.AuditEintraege
+                    .Where(a => (a.EntitaetName == "InkassoAkte" && a.EntitaetId == id) ||
+                                (a.Aktion == "PaymentPosted" && zahlungIds.Contains(a.EntitaetId)))
+                    .OrderByDescending(a => a.ZeitstempelUtc)
+                    .Take(100)
+                    .ToListAsync();
+                plaene = await Db.Ratenzahlungsplaene.Include(p => p.Raten).Where(p => p.AkteId == id).ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            actionError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void UpdatePreview()
+    {
+        if (akte is null) return;
+        try
+        {
+            preview = new StandardTilgungsStrategie().Verrechne(paymentAmount, akte.OffeneKosten, akte.OffeneZinsen, akte.OffeneHauptforderung);
+        }
+        catch
+        {
+            preview = null;
+        }
+    }
+
+    private async Task PostPayment()
+    {
+        if (akte is null) return;
+        isPosting = true;
+        paymentError = null;
+        paymentMessage = null;
+        try
+        {
+            var zahlung = await PostingService.PosteZahlungAsync(akte.AkteId, paymentAmount, DateTime.UtcNow, new StandardTilgungsStrategie());
+            paymentMessage = $"Zahlung {zahlung.Betrag.ToString("C", de)} verbucht.";
+            paymentAmount = 0m;
+            preview = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex)
+        {
+            paymentError = ex.Message;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            paymentError = "Konflikt: Die Akte wurde zwischenzeitlich geändert. Neu geladen.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            paymentError = ex.Message;
+        }
+        finally
+        {
+            isPosting = false;
+        }
+    }
+
+    private async Task RunAction(Func<Task> action)
+    {
+        isActionRunning = true;
+        actionError = null;
+        actionMessage = null;
+        try
+        {
+            await action();
+            actionMessage = "Aktion ausgeführt.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            actionError = ex.Message;
+        }
+        finally
+        {
+            isActionRunning = false;
+        }
+    }
+
+    private Task StartDunning() => RunAction(async () => { akte!.StarteVorgerichtlicheMahnung(); await Db.SaveChangesAsync(); });
+    private Task RaiseDunning() => RunAction(async () => { akte!.ErhoeheMahnstufe(); await Db.SaveChangesAsync(); });
+    private Task ActivatePlan() => RunAction(async () => { akte!.AktiviereRatenplan(); await Db.SaveChangesAsync(); });
+    private Task Escalate() => RunAction(async () => { akte!.EskaliereZumGerichtlichenMahnverfahren(akte.HatAktivenNichtDefaultedRatenplan()); await Db.SaveChangesAsync(); });
+    private Task MarkDone() => RunAction(async () => { akte!.MarkiereErledigt(); await Db.SaveChangesAsync(); });
+    private Task Close() => RunAction(async () => { akte!.Schliesse(); await Db.SaveChangesAsync(); });
+}

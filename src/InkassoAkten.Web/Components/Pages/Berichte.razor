@@ -1,0 +1,73 @@
+@page "/berichte"
+@rendermode InteractiveServer
+@using InkassoAkten.Application.Interfaces
+@using System.Globalization
+@inject IAgingReportService ReportService
+
+<PageTitle>Berichte</PageTitle>
+
+<h1>Altersstruktur offener Forderungen</h1>
+
+@if (isLoading)
+{
+    <p>Laden…</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (rows.Count == 0)
+{
+    <div class="alert alert-secondary">Keine Daten vorhanden.</div>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Akte</th>
+                <th>Schuldner</th>
+                <th>Mandant</th>
+                <th>Bucket</th>
+                <th>Tage</th>
+                <th>Gesamtsaldo</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in rows)
+            {
+                <tr>
+                    <td>@r.Akte</td>
+                    <td>@r.Schuldner</td>
+                    <td>@r.Mandant</td>
+                    <td>@r.Altersbucket</td>
+                    <td>@r.TageUeberfaellig</td>
+                    <td>@r.Gesamtsaldo.ToString("C", de)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private static readonly CultureInfo de = CultureInfo.GetCultureInfo("de-DE");
+    private bool isLoading = true;
+    private string? errorMessage;
+    private List<ForderungsAltersstrukturRow> rows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            rows = (await ReportService.GetAltersstrukturAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

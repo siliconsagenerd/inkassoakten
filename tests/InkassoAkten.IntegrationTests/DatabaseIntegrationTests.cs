@@ -80,12 +80,15 @@ public class DatabaseIntegrationTests
     [Fact]
     public async Task Concurrent_Update_Raises_Concurrency_Exception()
     {
+        using var initContext = CreateContext();
+        try { await initContext.Database.EnsureDeletedAsync(); } catch { }
+        await initContext.Database.MigrateAsync();
+        await DatabaseSeeder.SeedAsync(initContext);
+
         using var context1 = CreateContext();
         using var context2 = CreateContext();
-        await context1.Database.MigrateAsync();
-        await DatabaseSeeder.SeedAsync(context1);
 
-        var akte1 = await context1.InkassoAkten.FirstAsync();
+        var akte1 = await context1.InkassoAkten.FirstAsync(a => a.Aktenzeichen == "ADV-2026-0005");
         var akte2 = await context2.InkassoAkten.FirstAsync(a => a.AkteId == akte1.AkteId);
 
         akte1.AkteStatus = AkteStatus.VorgerichtlicheMahnung;
@@ -103,9 +106,9 @@ public class DatabaseIntegrationTests
         await context.Database.MigrateAsync();
         await DatabaseSeeder.SeedAsync(context);
 
-        var akte = await context.InkassoAkten.FirstAsync(a => a.Aktenzeichen == "ADV-2026-0002");
+        var akte = await context.InkassoAkten.FirstAsync(a => (a.OffeneKosten + a.OffeneZinsen + a.OffeneHauptforderung) > 100m);
         var service = new ZahlungPostingService(context);
-        var zahlung = await service.PosteZahlungAsync(akte.AkteId, 100m, DateTime.UtcNow, new StandardTilgungsStrategie());
+        var zahlung = await service.PosteZahlungAsync(akte.AkteId, 50m, DateTime.UtcNow, new StandardTilgungsStrategie());
 
         var buchungen = await context.Buchungen.Where(b => b.ZahlungId == zahlung.ZahlungId).ToListAsync();
         buchungen.Should().HaveCount(1);
@@ -119,9 +122,9 @@ public class DatabaseIntegrationTests
         await context.Database.MigrateAsync();
         await DatabaseSeeder.SeedAsync(context);
 
-        var akte = await context.InkassoAkten.FirstAsync(a => a.Aktenzeichen == "ADV-2026-0002");
+        var akte = await context.InkassoAkten.FirstAsync(a => (a.OffeneKosten + a.OffeneZinsen + a.OffeneHauptforderung) > 100m);
         var service = new ZahlungPostingService(context);
-        var zahlung = await service.PosteZahlungAsync(akte.AkteId, 100m, DateTime.UtcNow, new StandardTilgungsStrategie());
+        var zahlung = await service.PosteZahlungAsync(akte.AkteId, 50m, DateTime.UtcNow, new StandardTilgungsStrategie());
 
         var buchung = await context.Buchungen.FirstAsync(b => b.ZahlungId == zahlung.ZahlungId);
         (buchung.BetragKosten + buchung.BetragZinsen + buchung.BetragHauptforderung).Should().Be(zahlung.Betrag);
@@ -130,24 +133,57 @@ public class DatabaseIntegrationTests
     [Fact]
     public async Task Concurrent_Payments_Do_Not_Double_Allocate()
     {
+        using var initContext = CreateContext();
+        // EnsureDeleted requires Initial Catalog in connection; skip if not available
+        try { await initContext.Database.EnsureDeletedAsync(); } catch { }
+        await initContext.Database.MigrateAsync();
+        await DatabaseSeeder.SeedAsync(initContext);
+
+        // Select an akte with positive open balance
+        var akte = await initContext.InkassoAkten.FirstAsync(a => a.Aktenzeichen == "ADV-2026-0003");
+        var id = akte.AkteId;
+        var betrag = akte.Gesamtsaldo; // full balance: second concurrent attempt must fail
+
         using var context1 = CreateContext();
         using var context2 = CreateContext();
-        await context1.Database.MigrateAsync();
-        await DatabaseSeeder.SeedAsync(context1);
-
-        var akte = await context1.InkassoAkten.FirstAsync();
-        var id = akte.AkteId;
-        var offener = akte.Gesamtsaldo;
-        var betrag = offener; // full balance: second concurrent attempt must fail
-
         var s1 = new ZahlungPostingService(context1);
         var s2 = new ZahlungPostingService(context2);
 
-        var t1 = Task.Run(async () => { try { await s1.PosteZahlungAsync(id, betrag, DateTime.UtcNow, new StandardTilgungsStrategie()); return true; } catch { return false; } });
-        var t2 = Task.Run(async () => { try { await s2.PosteZahlungAsync(id, betrag, DateTime.UtcNow, new StandardTilgungsStrategie()); return true; } catch { return false; } });
+        Exception? ex1 = null; Exception? ex2 = null;
+        bool ok1 = false, ok2 = false;
+        using var barrier = new Barrier(2);
+        var t1 = Task.Run(async () => { barrier.SignalAndWait(); try { await s1.PosteZahlungAsync(id, betrag, DateTime.UtcNow, new StandardTilgungsStrategie()); ok1 = true; } catch (Exception e) { ex1 = e; } });
+        var t2 = Task.Run(async () => { barrier.SignalAndWait(); try { await s2.PosteZahlungAsync(id, betrag, DateTime.UtcNow, new StandardTilgungsStrategie()); ok2 = true; } catch (Exception e) { ex2 = e; } });
 
-        var results = await Task.WhenAll(t1, t2);
-        results.Count(r => r).Should().Be(1);
+        await Task.WhenAll(t1, t2);
+
+        // Exactly one success, exactly one rejection
+        (ok1 ^ ok2).Should().BeTrue("one payment attempt must succeed and the competing attempt must fail");
+        var rejected = ok1 ? ex2 : ex1;
+        rejected.Should().NotBeNull();
+
+        // The rejection must be an explicit domain rule or concurrency conflict, not a network/connection fault
+        (rejected is Domain.Exceptions.DomainException || rejected is DbUpdateConcurrencyException).Should().BeTrue();
+
+        // Verify final state with a fresh DbContext
+        using var verify = CreateContext();
+        var zahlungen = await verify.Zahlungen.Where(z => z.AkteId == id).ToListAsync();
+        zahlungen.Should().HaveCount(1, "only one payment record must be created");
+
+        var buchungen = await verify.Buchungen.Where(b => b.AkteId == id).ToListAsync();
+        buchungen.Should().HaveCount(1, "only one ledger buchung must be created");
+
+        var zahlungIds = await verify.Zahlungen.Where(z => z.AkteId == id).Select(z => z.ZahlungId).ToListAsync();
+        var audits = await verify.AuditEintraege
+            .Where(a => a.Aktion == "PaymentPosted" && zahlungIds.Contains(a.EntitaetId))
+            .ToListAsync();
+        audits.Should().HaveCount(1, "exactly one payment audit entry must be persisted for the successful payment");
+
+        var finalAkte = await verify.InkassoAkten.FirstAsync(a => a.AkteId == id);
+        finalAkte.Gesamtsaldo.Should().Be(0m, "balance must reduced exactly once to zero");
+        finalAkte.OffeneKosten.Should().Be(0m);
+        finalAkte.OffeneZinsen.Should().Be(0m);
+        finalAkte.OffeneHauptforderung.Should().Be(0m);
     }
 
     [Fact]
@@ -157,12 +193,13 @@ public class DatabaseIntegrationTests
         await context.Database.MigrateAsync();
         await DatabaseSeeder.SeedAsync(context);
 
-        var akte = await context.InkassoAkten.FirstAsync(a => a.Aktenzeichen == "ADV-2026-0002");
+        var akte = await context.InkassoAkten.FirstAsync(a => (a.OffeneKosten + a.OffeneZinsen + a.OffeneHauptforderung) > 100m);
         var service = new ZahlungPostingService(context);
         await service.PosteZahlungAsync(akte.AkteId, 50m, DateTime.UtcNow, new StandardTilgungsStrategie());
 
-        var audits = await context.AuditEintraege.Where(a => a.Aktion == "PaymentPosted").ToListAsync();
-        audits.Should().NotBeEmpty();
+        var zahlung = await context.Zahlungen.FirstAsync(z => z.AkteId == akte.AkteId);
+        var audit = await context.AuditEintraege.FirstOrDefaultAsync(a => a.EntitaetId == zahlung.ZahlungId && a.Aktion == "PaymentPosted");
+        audit.Should().NotBeNull();
     }
 
     [Fact]

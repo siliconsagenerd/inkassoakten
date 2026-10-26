@@ -1,0 +1,190 @@
+@page "/akten"
+@rendermode InteractiveServer
+@using InkassoAkten.Domain.Entities
+@using InkassoAkten.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@inject InkassoAktenDbContext Db
+
+<PageTitle>Akten</PageTitle>
+
+<h1>Inkassoakten</h1>
+
+<div class="mb-3 row g-2">
+    <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" @bind="statusFilter" @bind:after="ReloadAsync">
+            <option value="">Alle</option>
+            @foreach (var s in Enum.GetNames<AkteStatus>())
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Schuldner</label>
+        <input class="form-control" @bind="debtorFilter" @bind:event="oninput" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Mandant</label>
+        <input class="form-control" @bind="creditorFilter" @bind:event="oninput" />
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Sortierung</label>
+        <select class="form-select" @bind="sortBy" @bind:after="ReloadAsync">
+            <option value="Aktenzeichen">Aktenzeichen</option>
+            <option value="Saldo">Saldo</option>
+            <option value="Faelligkeit">Fälligkeit</option>
+        </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <div class="form-check me-3">
+            <input class="form-check-input" type="checkbox" @bind="overdueOnly" @bind:after="ReloadAsync" id="overdue" />
+            <label class="form-check-label" for="overdue">Überfällig</label>
+        </div>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" @bind="openOnly" @bind:after="ReloadAsync" id="open" />
+            <label class="form-check-label" for="open">Offen</label>
+        </div>
+    </div>
+</div>
+
+<button class="btn btn-primary mb-3" @onclick="ReloadAsync" disabled="@isLoading">Filtern</button>
+
+@if (isLoading)
+{
+    <p>Laden…</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (items.Count == 0)
+{
+    <div class="alert alert-secondary">Keine Akten gefunden.</div>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Aktenzeichen</th>
+                <th>Mandant</th>
+                <th>Schuldner</th>
+                <th>Status</th>
+                <th>Saldo</th>
+                <th>Fälligkeit</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in items)
+            {
+                <tr>
+                    <td><a href="/akten/@a.AkteId">@a.Aktenzeichen</a></td>
+                    <td>@a.Mandant?.Firmenname</td>
+                    <td>@a.Schuldner?.NachnameOderFirma, @a.Schuldner?.Vorname</td>
+                    <td>@a.AkteStatus</td>
+                    <td>@a.Gesamtsaldo.ToString("C", de)</td>
+                    <td>@a.Forderung?.Faelligkeitsdatum.ToString("dd.MM.yyyy", de)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="d-flex justify-content-between align-items-center">
+        <button class="btn btn-outline-secondary" @onclick="PreviousPage" disabled="@(page <= 1 || isLoading)">Zurück</button>
+        <span>Seite @(page) von @totalPages (@totalCount Akten)</span>
+        <button class="btn btn-outline-secondary" @onclick="NextPage" disabled="@(page >= totalPages || isLoading)">Weiter</button>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo de = CultureInfo.GetCultureInfo("de-DE");
+
+    private List<InkassoAkte> items = new();
+    private bool isLoading;
+    private string? errorMessage;
+    private int page = 1;
+    private int pageSize = 10;
+    private int totalCount;
+    private int totalPages = 1;
+
+    private string? statusFilter;
+    private string? debtorFilter;
+    private string? creditorFilter;
+    private bool overdueOnly;
+    private bool openOnly;
+    private string sortBy = "Aktenzeichen";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var query = Db.InkassoAkten.AsNoTracking()
+                .Include(a => a.Mandant)
+                .Include(a => a.Schuldner)
+                .Include(a => a.Forderung)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(statusFilter) && Enum.TryParse<AkteStatus>(statusFilter, out var status))
+                query = query.Where(a => a.AkteStatus == status);
+
+            if (!string.IsNullOrWhiteSpace(debtorFilter))
+                query = query.Where(a => a.Schuldner != null &&
+                    (a.Schuldner.NachnameOderFirma.Contains(debtorFilter) ||
+                     (a.Schuldner.Vorname != null && a.Schuldner.Vorname.Contains(debtorFilter))));
+
+            if (!string.IsNullOrWhiteSpace(creditorFilter))
+                query = query.Where(a => a.Mandant != null && a.Mandant.Firmenname.Contains(creditorFilter));
+
+            if (overdueOnly)
+            {
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                query = query.Where(a => a.Forderung != null && a.Forderung.Faelligkeitsdatum < today);
+            }
+
+            if (openOnly)
+                query = query.Where(a => a.OffeneKosten + a.OffeneZinsen + a.OffeneHauptforderung > 0m);
+
+            query = sortBy switch
+            {
+                "Saldo" => query.OrderByDescending(a => a.OffeneKosten + a.OffeneZinsen + a.OffeneHauptforderung),
+                "Faelligkeit" => query.OrderBy(a => a.Forderung!.Faelligkeitsdatum),
+                _ => query.OrderBy(a => a.Aktenzeichen)
+            };
+
+            totalCount = await query.CountAsync();
+            totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+            if (page > totalPages) page = totalPages;
+            if (page < 1) page = 1;
+
+            items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            items = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (page > 1) { page--; await ReloadAsync(); }
+    }
+
+    private async Task NextPage()
+    {
+        if (page < totalPages) { page++; await ReloadAsync(); }
+    }
+}

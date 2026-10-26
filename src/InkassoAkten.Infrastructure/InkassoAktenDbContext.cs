@@ -49,6 +49,7 @@ public class InkassoAktenDbContext : DbContext, IUnitOfWork
             entity.Property(e => e.Hauptforderung).HasColumnType("decimal(18,2)");
             entity.Property(e => e.Waehrung).IsRequired().HasMaxLength(3).HasDefaultValue("EUR");
             entity.Property(e => e.RowVersion).IsRowVersion();
+            entity.HasIndex(e => e.Faelligkeitsdatum);
             entity.HasOne(e => e.Mandant).WithMany().HasForeignKey(e => e.MandantId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Schuldner).WithMany().HasForeignKey(e => e.SchuldnerId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -65,6 +66,7 @@ public class InkassoAktenDbContext : DbContext, IUnitOfWork
             entity.HasIndex(e => e.AkteStatus);
             entity.HasIndex(e => e.MandantId);
             entity.HasIndex(e => e.SchuldnerId);
+            entity.HasIndex(e => new { e.MandantId, e.AkteStatus });
             entity.HasOne(e => e.Mandant).WithMany().HasForeignKey(e => e.MandantId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Schuldner).WithMany().HasForeignKey(e => e.SchuldnerId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Forderung).WithMany().HasForeignKey(e => e.ForderungId).OnDelete(DeleteBehavior.Restrict);

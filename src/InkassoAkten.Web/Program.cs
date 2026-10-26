@@ -1,3 +1,4 @@
+using InkassoAkten.Application.Interfaces;
 using InkassoAkten.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<InkassoAktenDbContext>(options =>
     options.UseSqlServer(connectionString));
+
+// Application & Infrastructure Services
+builder.Services.AddScoped<IPdfStatementService, PdfStatementService>();
+builder.Services.AddScoped<IAgingReportService, AgingReportService>();
+builder.Services.AddScoped<ZahlungPostingService>();
 
 var app = builder.Build();
 
@@ -26,7 +32,51 @@ app.UseAntiforgery();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "InkassoAkten" }));
 
+// PDF Download Endpoint
+app.MapGet("/api/akten/{id:int}/pdf", async (int id, InkassoAktenDbContext db, IPdfStatementService pdfService) =>
+{
+    var akte = await db.InkassoAkten
+        .Include(a => a.Mandant)
+        .Include(a => a.Schuldner)
+        .Include(a => a.Forderung)
+        .FirstOrDefaultAsync(a => a.AkteId == id);
+
+    if (akte == null) return Results.NotFound();
+
+    var buchungen = await db.Buchungen
+        .Where(b => b.AkteId == id)
+        .OrderBy(b => b.CreatedAtUtc)
+        .Select(b => new ForderungsaufstellungBuchung(
+            b.BuchungId,
+            b.CreatedAtUtc,
+            b.BetragKosten,
+            b.BetragZinsen,
+            b.BetragHauptforderung,
+            b.BetragKosten + b.BetragZinsen + b.BetragHauptforderung))
+        .ToListAsync();
+
+    var data = new ForderungsaufstellungData(
+        Aktenzeichen: akte.Aktenzeichen,
+        MandantName: akte.Mandant.Firmenname,
+        SchuldnerName: $"{akte.Schuldner.NachnameOderFirma}, {akte.Schuldner.Vorname}".Trim(' ', ','),
+        SchuldnerAdresse: $"{akte.Schuldner.Strasse}, {akte.Schuldner.PLZ} {akte.Schuldner.Ort}",
+        Verzugsbeginn: akte.Forderung.Faelligkeitsdatum,
+        UrspruenglicheHauptforderung: akte.Forderung.Hauptforderung,
+        OffeneHauptforderung: akte.OffeneHauptforderung,
+        OffeneZinsen: akte.OffeneZinsen,
+        OffeneKosten: akte.OffeneKosten,
+        Gesamtsaldo: akte.Gesamtsaldo,
+        Buchungen: buchungen,
+        ErstelltAmUtc: DateTime.UtcNow);
+
+    var bytes = pdfService.GeneriereForderungsaufstellung(data);
+    return Results.File(bytes, "application/pdf", $"Forderungsaufstellung_{akte.Aktenzeichen}.pdf");
+});
+
 app.MapRazorComponents<InkassoAkten.Web.Components.App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// Make Program accessible for WebApplicationFactory in integration tests
+public partial class Program { }

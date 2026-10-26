@@ -1,17 +1,25 @@
 # InkassoAkten
 
-> Deterministic receivables and case management for German debt collection.
+Deterministic receivables and case management for German debt collection (technical demo).
 
 ## What it demonstrates
 
-C#/.NET 8, MS SQL Server 2022, EF Core, Clean Architecture, optimistic concurrency, and deterministic seed data.
+- .NET 8 / ASP.NET Core Blazor Server
+- EF Core + SQL Server 2022
+- Clean Architecture
+- § 367 BGB-style allocation (costs, then interest, then principal)
+- § 288 BGB interest assumptions with seeded basis rates
+- State machine, immutable ledger, audit trail
+- Optimistic concurrency and concurrent payment handling
+- Aging report and PDF statement generation
 
 ## Tech Stack
 
 - .NET 8 / ASP.NET Core Blazor Server
 - EF Core + Microsoft.EntityFrameworkCore.SqlServer
-- MS SQL Server 2022 (Docker)
-- xUnit + Testcontainers.MsSql
+- MS SQL Server 2022 (Docker Compose)
+- xUnit + FluentAssertions + Testcontainers.MsSql
+- QuestPDF (Community license) for PDF rendering in Infrastructure
 
 ## Architecture
 
@@ -22,7 +30,6 @@ See [docs/architecture.md](docs/architecture.md).
 ```bash
 dotnet restore InkassoAkten.sln
 dotnet build InkassoAkten.sln
-dotnet test InkassoAkten.sln
 ```
 
 ## Docker
@@ -41,14 +48,21 @@ dotnet ef database update --project src/InkassoAkten.Infrastructure --startup-pr
 ## Tests
 
 ```bash
-dotnet test InkassoAkten.sln
+dotnet test tests/InkassoAkten.Domain.Tests/InkassoAkten.Domain.Tests.csproj
+dotnet test tests/InkassoAkten.IntegrationTests/InkassoAkten.IntegrationTests.csproj
 ```
 
-## Roadmap
+Integration tests require a SQL Server instance. The fixture uses Testcontainers when `TEST_SQLSERVER_CONNECTIONSTRING` is not set. A pre-existing SQL Server can be used through that environment variable; use an isolated disposable test database only.
 
-- Phase 2: ✅ § 367 BGB allocation, § 288 BGB interest, state machine, immutable ledger, concurrency
-- Phase 3: Blazor UI, aging report, DevExpress evaluation, PDF statement
-- Future: bank-payment import and matching engine
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md)
+- [docs/database.md](docs/database.md)
+- [docs/decisions.md](docs/decisions.md)
+
+## Legal / Demo Limitations
+
+This repository is a technical demonstration. It is not legal advice, not a production debt-collection system, and must not be used to make enforceable claims without qualified legal review. Synthetic seed data only.
 
 ## License
 
