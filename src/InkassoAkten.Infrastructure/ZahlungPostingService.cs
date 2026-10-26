@@ -9,10 +9,17 @@ namespace InkassoAkten.Infrastructure;
 public class ZahlungPostingService : IZahlungPostingService
 {
     private readonly InkassoAktenDbContext _db;
-    public ZahlungPostingService(InkassoAktenDbContext db) => _db = db;
+    private readonly IOperatorContext? _operatorContext;
+    public ZahlungPostingService(InkassoAktenDbContext db, IOperatorContext? operatorContext = null)
+    {
+        _db = db;
+        _operatorContext = operatorContext;
+    }
 
     public async Task<Zahlung> PosteZahlungAsync(int akteId, decimal betrag, DateTime zahlungsdatumUtc, ITilgungsVerrechnungsStrategie strategie, CancellationToken ct = default)
     {
+        if (_operatorContext is not null && !_operatorContext.CanWrite)
+            throw new UnauthorizedAccessException("Operator authorization required.");
         using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {

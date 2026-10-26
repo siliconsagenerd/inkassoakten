@@ -1,11 +1,54 @@
 using InkassoAkten.Application.Interfaces;
 using InkassoAkten.Infrastructure;
+using InkassoAkten.Web;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IOperatorContext, OperatorContext>();
+
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "InkassoAkten.Operator";
+        options.LoginPath = "/login";
+        options.LogoutPath = "/auth/logout";
+        options.AccessDeniedPath = "/login";
+        options.SlidingExpiration = true;
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Operator", policy => policy.RequireRole("Operator"));
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("login", o =>
+    {
+        o.PermitLimit = builder.Configuration.GetValue<int>("RateLimits:LoginPerMinute", 5);
+        o.Window = TimeSpan.FromMinutes(1);
+        o.QueueLimit = 0;
+    });
+    options.AddFixedWindowLimiter("pdf", o =>
+    {
+        o.PermitLimit = builder.Configuration.GetValue<int>("RateLimits:PdfPerMinute", 30);
+        o.Window = TimeSpan.FromMinutes(1);
+        o.QueueLimit = 0;
+    });
+});
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Server=localhost,1433;Database=InkassoDb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;";
@@ -55,6 +98,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "InkassoAkten" }));
 
@@ -99,7 +145,43 @@ app.MapGet("/api/akten/{id:int}/pdf", async (int id, InkassoAktenDbContext db, I
 
     var bytes = pdfService.GeneriereForderungsaufstellung(data);
     return Results.File(bytes, "application/pdf", $"Forderungsaufstellung_{akte.Aktenzeichen}.pdf");
-});
+}).RequireRateLimiting("pdf");
+
+// Authentication endpoints (cookie-based operator login)
+app.MapPost("/auth/login", async (HttpContext http, IConfiguration config) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var username = form["username"].ToString();
+    var password = form["password"].ToString();
+
+    var expectedUser = config["Auth:Operator:Username"] ?? "operator";
+    var expectedPass = config["Auth:Operator:Password"] ?? "";
+
+    var ok = !string.IsNullOrEmpty(expectedPass)
+        && string.Equals(username, expectedUser, StringComparison.Ordinal)
+        && string.Equals(password, expectedPass, StringComparison.Ordinal);
+
+    if (!ok)
+    {
+        return Results.Redirect("/login?error=1");
+    }
+
+    var claims = new List<Claim>
+    {
+        new(ClaimTypes.Name, username),
+        new(ClaimTypes.Role, "Operator")
+    };
+    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+    var principal = new ClaimsPrincipal(identity);
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+    return Results.Redirect("/");
+}).RequireRateLimiting("login").DisableAntiforgery();
+
+app.MapPost("/auth/logout", async (HttpContext http) =>
+{
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/");
+}).DisableAntiforgery();
 
 app.MapRazorComponents<InkassoAkten.Web.Components.App>()
     .AddInteractiveServerRenderMode();

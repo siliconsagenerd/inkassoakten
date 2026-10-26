@@ -1,0 +1,30 @@
+@page "/login"
+@using Microsoft.AspNetCore.Components
+
+<PageTitle>Operator-Anmeldung</PageTitle>
+
+<h1>Operator-Anmeldung</h1>
+
+@if (hasError)
+{
+    <div class="alert alert-danger">Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen.</div>
+}
+
+<form method="post" action="/auth/login">
+    <div class="mb-3">
+        <label class="form-label">Benutzername</label>
+        <input class="form-control" type="text" name="username" autocomplete="username" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Passwort</label>
+        <input class="form-control" type="password" name="password" autocomplete="current-password" />
+    </div>
+    <button class="btn btn-primary" type="submit">Anmelden</button>
+</form>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private bool hasError => Error == "1";
+}

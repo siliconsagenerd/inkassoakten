@@ -6,7 +6,21 @@ namespace InkassoAkten.Infrastructure;
 
 public class InkassoAktenDbContext : DbContext, IUnitOfWork
 {
-    public InkassoAktenDbContext(DbContextOptions<InkassoAktenDbContext> options) : base(options) { }
+    private readonly IOperatorContext? _operatorContext;
+
+    public InkassoAktenDbContext(DbContextOptions<InkassoAktenDbContext> options, IOperatorContext? operatorContext = null) : base(options)
+    {
+        _operatorContext = operatorContext;
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        if (_operatorContext is not null && !_operatorContext.CanWrite && ChangeTracker.HasChanges())
+        {
+            throw new UnauthorizedAccessException("Operator authorization required for persisted changes.");
+        }
+        return base.SaveChangesAsync(cancellationToken);
+    }
 
     public DbSet<Mandant> Mandanten => Set<Mandant>();
     public DbSet<Schuldner> Schuldner => Set<Schuldner>();
