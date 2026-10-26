@@ -60,19 +60,33 @@ public class Phase3PdfAndReportingTests
                 builder.UseSetting("ConnectionStrings:DefaultConnection", conn);
             });
 
+        int akteId;
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
-            foreach (var sql in new[] { "DELETE FROM InkassoAkten", "DELETE FROM Forderungen", "DELETE FROM Schuldner", "DELETE FROM Mandanten" })
+            foreach (var sql in new[]
+            {
+                "DELETE FROM AuditEintraege",
+                "DELETE FROM Raten",
+                "DELETE FROM Ratenzahlungsplaene",
+                "DELETE FROM Buchungen",
+                "DELETE FROM Zahlungen",
+                "DELETE FROM Mahnungen",
+                "DELETE FROM InkassoAkten",
+                "DELETE FROM Forderungen",
+                "DELETE FROM Schuldner",
+                "DELETE FROM Mandanten"
+            })
             {
                 try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
             }
             await db.Database.MigrateAsync();
             await DatabaseSeeder.SeedAsync(db);
+            akteId = await db.InkassoAkten.OrderBy(a => a.AkteId).Select(a => a.AkteId).FirstAsync();
         }
 
         var client = factory.CreateClient();
-        var response = await client.GetAsync("/api/akten/1/pdf");
+        var response = await client.GetAsync($"/api/akten/{akteId}/pdf");
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/pdf");
