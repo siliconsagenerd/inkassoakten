@@ -88,6 +88,30 @@ Integration tests require a SQL Server instance. The fixture uses Testcontainers
 - [docs/database.md](docs/database.md)
 - [docs/decisions.md](docs/decisions.md)
 
+## Browser Verification (Phase 4C)
+
+Verified against an isolated SQL Server database (`InkassoBrowserVerify`) with synthetic seed data only. No shared application database was mutated.
+
+- `/akten` loads 5 synthetic cases; demo banner visible.
+- Case detail, ledger, aging report (`/berichte`), and PDF download (`/api/akten/{id}/pdf`) work anonymously.
+- Payment preview computes the § 367 BGB allocation (costs → interest → principal) without persisting.
+- Anonymous payment posting and state changes are rejected; UI shows "Zahlung verbuchen erfordert Operator-Anmeldung."
+- Operator login form carries and validates an antiforgery token.
+- Valid operator login enables posting; a 50,00 € payment updated balance, ledger, and audit trail.
+- Overpayment is rejected with "Payment exceeds outstanding balance."
+- State transition (Aktenanlage → VorgerichtlicheMahnung) succeeded with "Aktion ausgeführt."
+- Logout removes write access; after logout the payment form shows the login-required notice.
+- Login rate limit: 5 requests pass, 6th returns 429.
+- PDF rate limit: 30 requests pass, 31st returns 429.
+- Both limits use a fixed window per endpoint (global per server instance, not per user/session).
+
+Known limitations:
+- `AuthenticationStateChanged` updates the in-circuit operator flag on login/logout, but it does not automatically revalidate cookie expiry or cross-tab logout. A stale circuit may retain the operator flag until reloaded.
+- Blazor prerendering persisted antiforgery tokens under a shared key, causing a collision when both `MainLayout` and `Login` rendered; fixed by using distinct persistence keys (`logoutAntiforgeryToken` vs `antiforgeryToken`).
+- DevExpress is not implemented (standard Blazor components only).
+- QuestPDF Community license; commercial eligibility must be verified before commercial use.
+- Full UI repeated-click protection beyond disabled submit buttons is not verified.
+
 ## Legal / Demo Limitations
 
 This repository is a technical demonstration. It is not legal advice, not a production debt-collection system, and must not be used to make enforceable claims without qualified legal review. Synthetic seed data only.
