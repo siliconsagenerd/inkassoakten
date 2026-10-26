@@ -41,6 +41,11 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddRateLimiter(options =>
 {
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await Task.CompletedTask;
+    };
     options.AddFixedWindowLimiter("login", o =>
     {
         o.PermitLimit = builder.Configuration.GetValue<int>("RateLimits:LoginPerMinute", 5);
