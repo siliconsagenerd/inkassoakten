@@ -2,7 +2,6 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Antiforgery
 @inject IAntiforgery Antiforgery
-@inject IHttpContextAccessor HttpContextAccessor
 @inject PersistentComponentState ApplicationState
 @implements IDisposable
 
@@ -33,6 +32,7 @@
     public string? Error { get; set; }
 
     private bool hasError => Error == "1";
+    [CascadingParameter] public HttpContext? HttpContext { get; set; }
     private string? antiforgeryToken;
     private PersistingComponentStateSubscription? subscription;
 
@@ -43,9 +43,9 @@
         {
             antiforgeryToken = t;
         }
-        else if (HttpContextAccessor.HttpContext is not null)
+        else if (HttpContext is not null)
         {
-            var tokens = Antiforgery.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+            var tokens = Antiforgery.GetAndStoreTokens(HttpContext);
             antiforgeryToken = tokens.RequestToken;
         }
     }

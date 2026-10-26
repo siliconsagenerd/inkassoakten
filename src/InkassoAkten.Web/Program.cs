@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Antiforgery;
 using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IOperatorContext, OperatorContext>();
+builder.Services.AddScoped<IOperatorContextInitializer>(sp => (IOperatorContextInitializer)sp.GetRequiredService<IOperatorContext>());
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -105,7 +107,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -158,8 +163,17 @@ app.MapGet("/api/akten/{id:int}/pdf", async (int id, InkassoAktenDbContext db, I
 }).RequireRateLimiting("pdf");
 
 // Authentication endpoints (cookie-based operator login)
-app.MapPost("/auth/login", async (HttpContext http, IConfiguration config) =>
+app.MapPost("/auth/login", async (HttpContext http, IConfiguration config, IAntiforgery antiforgery) =>
 {
+    try
+    {
+        await antiforgery.ValidateRequestAsync(http);
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return Results.BadRequest();
+    }
+
     var form = await http.Request.ReadFormAsync();
     var username = form["username"].ToString();
     var password = form["password"].ToString();
@@ -187,8 +201,17 @@ app.MapPost("/auth/login", async (HttpContext http, IConfiguration config) =>
     return Results.Redirect("/");
 }).RequireRateLimiting("login");
 
-app.MapPost("/auth/logout", async (HttpContext http) =>
+app.MapPost("/auth/logout", async (HttpContext http, IAntiforgery antiforgery) =>
 {
+    try
+    {
+        await antiforgery.ValidateRequestAsync(http);
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return Results.BadRequest();
+    }
+
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/");
 });
