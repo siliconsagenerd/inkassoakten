@@ -63,6 +63,10 @@ public class Phase3PdfAndReportingTests
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+            foreach (var sql in new[] { "DELETE FROM InkassoAkten", "DELETE FROM Forderungen", "DELETE FROM Schuldner", "DELETE FROM Mandanten" })
+            {
+                try { await db.Database.ExecuteSqlRawAsync(sql); } catch { }
+            }
             await db.Database.MigrateAsync();
             await DatabaseSeeder.SeedAsync(db);
         }
