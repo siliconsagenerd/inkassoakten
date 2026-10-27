@@ -186,7 +186,9 @@ app.MapPost("/auth/login", async (HttpContext http, IConfiguration config, IAnti
     var expectedUser = config["Auth:Operator:Username"] ?? "operator";
     var expectedPass = config["Auth:Operator:Password"] ?? "";
 
-    var ok = !string.IsNullOrEmpty(expectedPass)
+    var publicReadOnly = config.GetValue<bool>("Security:PublicReadOnly", false);
+    var ok = !publicReadOnly
+        && !string.IsNullOrEmpty(expectedPass)
         && string.Equals(username, expectedUser, StringComparison.Ordinal)
         && string.Equals(password, expectedPass, StringComparison.Ordinal);
 

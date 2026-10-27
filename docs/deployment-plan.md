@@ -114,6 +114,26 @@ The seed command is explicit opt-in. It applies migrations, inserts the five syn
 - If a migration is incompatible with the previous app version, restore the database backup and then redeploy the previous app image.
 - Never combine an untested migration rollback with a production/demo cutover.
 
+## Health checks
+
+- `/health` is public and returns only `{ status, app }`.
+- Do not expose dependency details, database connection strings, or diagnostic data.
+- Add a startup probe that verifies SQL Server connectivity before marking the container healthy.
+- Add a readiness probe that confirms migration state; do not serve traffic before migrations complete.
+
+## Exact later actions requiring approval
+
+1. Implement authentication and authorization (cookie auth is already wired; add a demo operator account from environment variables, authorization policies, and server-side write guards).
+2. Expose a public URL (DNS, firewall, reverse proxy, or Tailscale Funnel changes).
+3. Provision or rent a host or managed SQL instance.
+4. Rotate the `sa` password and create a least-privilege application login.
+5. Replace SQL Server Developer Edition with Express or a licensed edition.
+6. Run the seed command against the production/demo database.
+7. Enable HTTPS and secure cookies for the public endpoint.
+8. Any change to operator credentials or rate-limit settings.
+
+No action above may be taken without explicit approval.
+
 ## Observed oldmac baseline (read-only measurements)
 
 Captured 2026-10-26 via SSH. No changes were made to oldmac.

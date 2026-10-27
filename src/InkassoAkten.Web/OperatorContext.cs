@@ -26,6 +26,7 @@ public class OperatorContext : IOperatorContext, IOperatorContextInitializer
         _config = config;
         // Fail-closed: missing configuration defaults to requiring operator auth.
         RequireOperatorAuth = _config.GetValue("Security:RequireOperatorAuth", true);
+        PublicReadOnly = _config.GetValue("Security:PublicReadOnly", false);
 
         var user = _http.HttpContext?.User;
         if (user is not null)
@@ -38,5 +39,6 @@ public class OperatorContext : IOperatorContext, IOperatorContextInitializer
     void IOperatorContextInitializer.SetOperator(bool value) => _isOperator = value;
     public bool BypassWrites { get; set; }
     public bool RequireOperatorAuth { get; }
-    public bool CanWrite => BypassWrites || !RequireOperatorAuth || IsOperator;
+    public bool PublicReadOnly { get; }
+    public bool CanWrite => !PublicReadOnly && (BypassWrites || !RequireOperatorAuth || IsOperator);
 }

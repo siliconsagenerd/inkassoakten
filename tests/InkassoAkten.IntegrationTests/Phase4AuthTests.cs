@@ -18,7 +18,7 @@ public class Phase4AuthTests
 
     public Phase4AuthTests(SqlServerFixture fixture) => _fixture = fixture;
 
-    private WebApplicationFactory<Program> CreateFactory(bool requireAuth, bool asOperator, string password = "TestPass!123", bool setSecurity = true, string environment = "Development")
+    private WebApplicationFactory<Program> CreateFactory(bool requireAuth, bool asOperator, string password = "TestPass!123", bool setSecurity = true, string environment = "Development", bool publicReadOnly = false)
     {
         return new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
@@ -26,7 +26,10 @@ public class Phase4AuthTests
                 builder.UseSetting("environment", environment);
                 builder.UseSetting("ConnectionStrings:DefaultConnection", _fixture.ConnectionString);
                 if (setSecurity)
+                {
                     builder.UseSetting("Security:RequireOperatorAuth", requireAuth.ToString().ToLower());
+                    builder.UseSetting("Security:PublicReadOnly", publicReadOnly.ToString().ToLower());
+                }
                 builder.UseSetting("Auth:Operator:Username", "operator");
                 builder.UseSetting("Auth:Operator:Password", password);
                 if (asOperator)
@@ -36,7 +39,7 @@ public class Phase4AuthTests
                         // replace IOperatorContext with an operator-authenticated one
                         var existing = services.FirstOrDefault(d => d.ServiceType == typeof(IOperatorContext));
                         if (existing is not null) services.Remove(existing);
-                        services.AddScoped<IOperatorContext>(_ => new TestOperatorContext(isOperator: true, requireAuth: requireAuth));
+                        services.AddScoped<IOperatorContext>(_ => new TestOperatorContext(isOperator: true, requireAuth: requireAuth, publicReadOnly: publicReadOnly));
                     });
                 }
             });
@@ -168,20 +171,78 @@ public class Phase4AuthTests
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("/login");
     }
+
+    [Fact]
+    public async Task PublicReadOnly_Disables_Operator_Login_Endpoint()
+    {
+        using var factory = CreateFactory(requireAuth: true, asOperator: false, password: "TestPass!123", publicReadOnly: true);
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var getTokenResponse = await client.GetAsync("/login");
+        var html = await getTokenResponse.Content.ReadAsStringAsync();
+        var match = System.Text.RegularExpressions.Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
+        var token = match.Groups[1].Value;
+
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["username"] = "operator",
+            ["password"] = "TestPass!123",
+            ["__RequestVerificationToken"] = token
+        });
+
+        var response = await client.PostAsync("/auth/login", content);
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.ToString().Should().Contain("/login");
+    }
+
+    [Fact]
+    public async Task PublicReadOnly_Rejects_Persisted_Mutations_Even_For_Operator()
+    {
+        using var factory = CreateFactory(requireAuth: true, asOperator: true, publicReadOnly: true);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+
+        db.Mandanten.Add(new Mandant { Firmenname = "Operator In ReadOnly" });
+        var act = async () => await db.SaveChangesAsync();
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task PublicReadOnly_Allows_Anonymous_Reads_And_Pdf()
+    {
+        using var factory = CreateFactory(requireAuth: true, asOperator: false, publicReadOnly: true);
+        var client = factory.CreateClient();
+
+        var aktenResp = await client.GetAsync("/akten");
+        aktenResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var berichteResp = await client.GetAsync("/berichte");
+        berichteResp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+        var firstAkte = await db.InkassoAkten.OrderBy(a => a.AkteId).FirstAsync();
+        var pdfResp = await client.GetAsync($"/api/akten/{firstAkte.AkteId}/pdf");
+        pdfResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        pdfResp.Content.Headers.ContentType?.MediaType.Should().Be("application/pdf");
+    }
 }
 
 public class TestOperatorContext : IOperatorContext
 {
     private readonly bool _isOperator;
     private readonly bool _requireAuth;
-    public TestOperatorContext(bool isOperator, bool requireAuth)
+    private readonly bool _publicReadOnly;
+    public TestOperatorContext(bool isOperator, bool requireAuth, bool publicReadOnly = false)
     {
         _isOperator = isOperator;
         _requireAuth = requireAuth;
+        _publicReadOnly = publicReadOnly;
     }
     public bool IsOperator => _isOperator;
     public void SetOperator(bool value) { }
     public bool BypassWrites { get; set; } = false;
     public bool RequireOperatorAuth => _requireAuth;
-    public bool CanWrite => !_requireAuth || _isOperator;
+    public bool PublicReadOnly => _publicReadOnly;
+    public bool CanWrite => !_publicReadOnly && (!_requireAuth || _isOperator);
 }
