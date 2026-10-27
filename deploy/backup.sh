@@ -19,6 +19,12 @@ docker exec "${CONTAINER}" /opt/mssql-tools18/bin/sqlcmd \
 docker cp "${CONTAINER}:${IN_CONTAINER_PATH}" "${HOST_PATH}"
 docker exec "${CONTAINER}" rm -f "${IN_CONTAINER_PATH}"
 
+# Optional off-VM upload to GCS (set GCS_BUCKET, e.g. gs://inkassoakten-demo-backups)
+if [ -n "${GCS_BUCKET:-}" ]; then
+  gcloud storage cp "${HOST_PATH}" "${GCS_BUCKET}/InkassoDb-${TS}.bak"
+  echo "Uploaded to ${GCS_BUCKET}/InkassoDb-${TS}.bak"
+fi
+
 # Retention: keep last 7
 ls -t "${HOST_DIR}"/*.bak 2>/dev/null | tail -n +8 | xargs -r rm -f
 echo "Backup created: ${HOST_PATH}"

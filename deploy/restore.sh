@@ -7,8 +7,10 @@ set -euo pipefail
 : "${BAK_PATH:?BAK_PATH must be set (absolute path to .bak)}"
 RESTORE_DB="${RESTORE_DB:-InkassoDb_restore_test}"
 
-docker cp "${BAK_PATH}" inkassoakten-db-1:/var/opt/mssql/backup/restore.bak
+CONTAINER_BAK="/var/opt/mssql/backup/restore-$(basename "${BAK_PATH}").$$"
+docker cp "${BAK_PATH}" "inkassoakten-db-1:${CONTAINER_BAK}"
 docker exec inkassoakten-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q \
-  "IF DB_ID(N'${RESTORE_DB}') IS NOT NULL ALTER DATABASE [${RESTORE_DB}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [${RESTORE_DB}] FROM DISK = N'/var/opt/mssql/backup/restore.bak' WITH REPLACE, RECOVERY;"
+  "IF DB_ID(N'${RESTORE_DB}') IS NOT NULL ALTER DATABASE [${RESTORE_DB}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [${RESTORE_DB}] FROM DISK = N'${CONTAINER_BAK}' WITH REPLACE, RECOVERY;"
+docker exec inkassoakten-db-1 rm -f "${CONTAINER_BAK}"
 echo "Restored into ${RESTORE_DB}. Verify, then drop it."
 EOF
