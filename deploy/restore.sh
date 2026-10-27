@@ -9,7 +9,7 @@ RESTORE_DB="${RESTORE_DB:-InkassoDb_restore_test}"
 
 CONTAINER_BAK="/var/opt/mssql/backup/restore-$(basename "${BAK_PATH}").$$"
 docker cp "${BAK_PATH}" "inkassoakten-db-1:${CONTAINER_BAK}"
-docker exec inkassoakten-db-1 chmod 644 "${CONTAINER_BAK}"
+docker exec -u 0 inkassoakten-db-1 chmod 644 "${CONTAINER_BAK}"
 docker exec inkassoakten-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q \
   "IF DB_ID(N'${RESTORE_DB}') IS NOT NULL ALTER DATABASE [${RESTORE_DB}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [${RESTORE_DB}] FROM DISK = N'${CONTAINER_BAK}' WITH REPLACE, RECOVERY;"
 docker exec inkassoakten-db-1 rm -f "${CONTAINER_BAK}"
