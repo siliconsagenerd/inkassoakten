@@ -82,13 +82,12 @@ if (seedDemo)
     // Explicit, non-web seed execution scope: bypass the web operator guard only here.
     // Resolve and configure the operator context BEFORE the DbContext so the bypass
     // is in place on the same scoped instance the DbContext captures.
-    var operatorContext = scope.ServiceProvider.GetService<IOperatorContextInitializer>();
-    if (operatorContext is not null)
-    {
-        operatorContext.BypassWrites = true;
-    }
+    var operatorContext = (IOperatorContext)scope.ServiceProvider.GetRequiredService<IOperatorContext>();
+    var operatorInitializer = (IOperatorContextInitializer)operatorContext;
+    operatorInitializer.BypassWrites = true;
 
-    var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+    var options = scope.ServiceProvider.GetRequiredService<DbContextOptions<InkassoAktenDbContext>>();
+    var db = new InkassoAktenDbContext(options, operatorContext);
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     try
