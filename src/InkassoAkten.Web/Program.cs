@@ -78,15 +78,18 @@ var app = builder.Build();
 if (seedDemo)
 {
     using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     // Explicit, non-web seed execution scope: bypass the web operator guard only here.
+    // Resolve and configure the operator context BEFORE the DbContext so the bypass
+    // is in place on the same scoped instance the DbContext captures.
     var operatorContext = scope.ServiceProvider.GetService<IOperatorContextInitializer>();
     if (operatorContext is not null)
     {
         operatorContext.BypassWrites = true;
     }
+
+    var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
     try
     {
