@@ -226,6 +226,22 @@ public class Phase4AuthTests
         pdfResp.StatusCode.Should().Be(HttpStatusCode.OK);
         pdfResp.Content.Headers.ContentType?.MediaType.Should().Be("application/pdf");
     }
+
+    [Fact]
+    public async Task PublicReadOnly_WithBypass_Allows_Persisted_Mutations()
+    {
+        using var factory = CreateFactory(requireAuth: true, asOperator: true, publicReadOnly: true);
+        using var scope = factory.Services.CreateScope();
+        var operatorContext = (TestOperatorContext)scope.ServiceProvider.GetRequiredService<IOperatorContext>();
+        operatorContext.BypassWrites = true;
+
+        var db = scope.ServiceProvider.GetRequiredService<InkassoAktenDbContext>();
+        db.Mandanten.Add(new Mandant { Firmenname = "Bypass Test" });
+        await db.SaveChangesAsync();
+
+        var count = await db.Mandanten.CountAsync(m => m.Firmenname == "Bypass Test");
+        count.Should().Be(1);
+    }
 }
 
 public class TestOperatorContext : IOperatorContext
