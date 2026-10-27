@@ -40,5 +40,5 @@ public class OperatorContext : IOperatorContext, IOperatorContextInitializer
     public bool BypassWrites { get; set; }
     public bool RequireOperatorAuth { get; }
     public bool PublicReadOnly { get; }
-    public bool CanWrite => !PublicReadOnly && (BypassWrites || !RequireOperatorAuth || IsOperator);
+    public bool CanWrite => BypassWrites || (!PublicReadOnly && (IsOperator || !RequireOperatorAuth));
 }

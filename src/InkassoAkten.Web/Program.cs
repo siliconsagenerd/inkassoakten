@@ -85,7 +85,6 @@ if (seedDemo)
     var operatorContext = (IOperatorContext)scope.ServiceProvider.GetRequiredService<IOperatorContext>();
     var operatorInitializer = (IOperatorContextInitializer)operatorContext;
     operatorInitializer.BypassWrites = true;
-    Console.Error.WriteLine($"DEBUG seed: BypassWrites={operatorContext is IOperatorContextInitializer i && i.BypassWrites}, CanWrite={operatorContext.CanWrite}, PublicReadOnly={(operatorContext as OperatorContext)?.PublicReadOnly}, RequireOperatorAuth={(operatorContext as OperatorContext)?.RequireOperatorAuth}");
 
     var options = scope.ServiceProvider.GetRequiredService<DbContextOptions<InkassoAktenDbContext>>();
     var db = new InkassoAktenDbContext(options, operatorContext);
