@@ -13,4 +13,3 @@ docker exec inkassoakten-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -
   "IF DB_ID(N'${RESTORE_DB}') IS NOT NULL ALTER DATABASE [${RESTORE_DB}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [${RESTORE_DB}] FROM DISK = N'${CONTAINER_BAK}' WITH REPLACE, RECOVERY;"
 docker exec inkassoakten-db-1 rm -f "${CONTAINER_BAK}"
 echo "Restored into ${RESTORE_DB}. Verify, then drop it."
-EOF

@@ -28,4 +28,3 @@ fi
 # Retention: keep last 7
 ls -t "${HOST_DIR}"/*.bak 2>/dev/null | tail -n +8 | xargs -r rm -f
 echo "Backup created: ${HOST_PATH}"
-EOF
