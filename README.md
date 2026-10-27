@@ -2,6 +2,8 @@
 
 Deterministic receivables and case management for German debt collection (technical demo).
 
+Live demo (public, read-only): https://inkassoakten.duckdns.org
+
 ## What it demonstrates
 
 - .NET 8 / ASP.NET Core Blazor Server

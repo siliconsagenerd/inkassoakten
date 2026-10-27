@@ -5,6 +5,7 @@
 @using InkassoAkten.Web
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IOperatorContextInitializer OperatorContext
+@inject IOperatorContext SecurityContext
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @inject PersistentComponentState ApplicationState
 
@@ -28,7 +29,14 @@
                     </form>
                 </Authorized>
                 <NotAuthorized>
-                    <a class="btn btn-sm btn-outline-primary" href="/login">Operator-Anmeldung</a>
+                    @if (SecurityContext.PublicReadOnly)
+                    {
+                        <span class="badge bg-secondary">Öffentliche, schreibgeschützte Demo</span>
+                    }
+                    else
+                    {
+                        <a class="btn btn-sm btn-outline-primary" href="/login">Operator-Anmeldung</a>
+                    }
                 </NotAuthorized>
             </AuthorizeView>
         </div>
