@@ -260,5 +260,5 @@ public class TestOperatorContext : IOperatorContext
     public bool BypassWrites { get; set; } = false;
     public bool RequireOperatorAuth => _requireAuth;
     public bool PublicReadOnly => _publicReadOnly;
-    public bool CanWrite => !_publicReadOnly && (!_requireAuth || _isOperator);
+    public bool CanWrite => BypassWrites || (!_publicReadOnly && (!_requireAuth || _isOperator));
 }
