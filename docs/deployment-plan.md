@@ -50,8 +50,8 @@ Status: gcloud authentication is currently expired in this environment, so live 
 
 ## SQL Server licensing conclusion
 
-- SQL Server 2022 Developer Edition: free for development and testing only. NOT licensed for a public demo or production use. Must not be used for the public deployment.
-- SQL Server 2022 Express: free for production use, with limits (database size <= 10 GB, buffer pool <= 1 GB, max 4 cores, max 1 socket / 4 cores). Suitable for a synthetic non-production public demonstration. Source: Microsoft Learn, "SQL Server editions" and "SQL Server 2022 Express" (https://learn.microsoft.com/en-us/sql/sql-server/editions-and-components-of-sql-server-2022).
+- SQL Server 2022 Developer Edition: free for development and test only. It is not licensed for production or public-facing use. A public demo should be treated as production use, so Developer Edition must not be used for the VM. It remains appropriate for local development and test (e.g. the shared oldmac SQL Server instance, which must not be changed). Source: Microsoft Learn, "SQL Server editions".
+- SQL Server 2022 Express: free and production-licensed, with limits (database size <= 10 GB, buffer pool <= 1 GB, max 4 cores, max 1 socket / 4 cores). Suitable for a synthetic public demonstration. Source: Microsoft Learn, "SQL Server editions" and "SQL Server 2022 Express" (https://learn.microsoft.com/en-us/sql/sql-server/editions-and-components-of-sql-server-2022).
 - SQL Server 2022 can run in a Linux Docker container. No Windows VM is required. Use image `mcr.microsoft.com/mssql/server:2022-latest` with `MSSQL_PID=Express`. Source: Microsoft Learn, "Deploy and connect to SQL Server Linux containers" (https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment).
 - Conclusion: use SQL Server 2022 Express in a Linux Docker container on a private Docker network. No Windows VM, no paid SQL license. If the demo later needs > 10 GB data or > 1 GB buffer pool, upgrade to a licensed Standard/Enterprise edition or a managed service.
 
@@ -185,19 +185,23 @@ inkassoakten.example.com {
 
 ## Cost estimate against available credit
 
-Assumptions: region us-central1 (or nearest), on-demand pricing, single VM, no committed use discounts.
+Assumptions: region europe-west3 (Frankfurt), on-demand pricing, single VM, no committed use discounts. Prices from the Cloud Billing Catalog API for europe-west3 (Frankfurt) as of 2026-10-27, EUR.
 
-| Item | Estimate (USD/month) |
+| Item | Estimate (EUR/month) |
 |---|---|
-| Compute Engine e2-medium (2 vCPU, 4 GB) | ~25 |
-| Balanced persistent disk 30 GB | ~3 |
-| Egress (demo traffic, minimal) | ~1-2 |
+| Compute Engine e2-medium (2 vCPU @ 0.02473 EUR/h, 4 GB RAM @ 0.00331 EUR/GiB/h) | ~46 |
+| Balanced persistent disk 30 GB @ 0.1056 EUR/GiB/month | ~3.2 |
+| External IPv4 (in use by a running VM) | 0 |
+| Egress (demo traffic, minimal, ~10 GB) | ~1-2 |
 | SQL Server 2022 Express license | 0 (free) |
 | Caddy / Let's Encrypt | 0 |
 | QuestPDF Community License (if eligible) | 0 |
-| **Total** | **~29-30** |
+| **Total** | **~50-52** |
 
-- Google Cloud trial credit: USD 300 (typically expires 90 days after activation). At ~USD 30/month this covers ~10 months of runtime but the credit must be used within the trial window; plan usage accordingly and monitor burn rate.
+Notes:
+- e2-medium provides shared (not dedicated) CPU capacity.
+- An external IP that is reserved but not attached to a running VM costs ~7.7 EUR/month; keep the VM running or release the IP.
+- Trial credit: account currency is EUR. The CLI does not expose remaining credit or expiration; confirm both in Billing -> Credits. Do not assume the original USD 300 or a full 90 days remain. Plan around the ACTUAL remaining credit AND its expiration date. The earlier "~10 months" figure was theoretical arithmetic (USD 300 / USD 30), not usable runtime if the credit expires earlier. At ~50 EUR/month, any remaining credit depletes faster than the 10-month figure suggested. Monitor burn rate and set a budget alert.
 - If the trial expires or is insufficient, fallback to AWS only after eligibility checks (see AWS fallback).
 - Costs depend on region, disk type, and traffic; re-estimate before provisioning. Do not assume credits cover SQL Server licensing or all services (Express is free; Standard/Enterprise is not).
 
