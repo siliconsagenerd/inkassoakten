@@ -33,7 +33,7 @@ else
 
     <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
         <div>
-            <h1 class="h3 fw-bold mb-1">@akte.Aktenzeichen</h1>
+            <h1 class="h4 fw-semibold mb-1">@akte.Aktenzeichen</h1>
             <p class="text-secondary small mb-0">@akte.Mandant?.Firmenname · @akte.Schuldner?.NachnameOderFirma@(string.IsNullOrWhiteSpace(akte.Schuldner?.Vorname) ? "" : $", {akte.Schuldner.Vorname}")</p>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -82,7 +82,7 @@ else
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="text-secondary small mb-1">Gesamtsaldo</div>
-                        <div class="fw-bold tabular-nums" style="color: var(--accent); font-size: 1.15rem;">@akte.Gesamtsaldo.ToString("C", de)</div>
+                        <div class="fw-bold tabular-nums" style="color: var(--accent);">@akte.Gesamtsaldo.ToString("C", de)</div>
                     </div>
                 </div>
             </div>
@@ -170,13 +170,13 @@ else
                     <div class="card-header">Plan @p.PlanId · Gesamt @p.Gesamtbetrag.ToString("C", de) · @(p.IstDefaulted ? "Defaulted" : "Aktiv")</div>
                     <div class="card-body">
                         <table class="table table-sm mb-0">
-                            <thead><tr><th>Fälligkeit</th><th>Betrag</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Fälligkeit</th><th class="text-end">Betrag</th><th>Status</th></tr></thead>
                             <tbody>
                                 @foreach (var r in p.Raten)
                                 {
                                     <tr>
                                         <td>@r.Faelligkeitsdatum.ToString("dd.MM.yyyy", de)</td>
-                                        <td>@r.Betrag.ToString("C", de)</td>
+                                        <td class="text-end tabular-nums">@r.Betrag.ToString("C", de)</td>
                                         <td>@(r.IstBezahlt ? "Bezahlt" : "Offen")</td>
                                     </tr>
                                 }
@@ -201,10 +201,10 @@ else
                     @foreach (var a in audits)
                     {
                         <tr>
-                            <td>@a.ZeitstempelUtc.ToString("dd.MM.yyyy HH:mm", de)</td>
-                            <td>@a.Aktion</td>
-                            <td>@a.EntitaetName #@a.EntitaetId</td>
-                            <td>@a.NeuWerteJson</td>
+                            <td class="text-secondary small tabular-nums">@a.ZeitstempelUtc.ToString("dd.MM.yyyy HH:mm", de)</td>
+                            <td class="fw-medium small">@a.Aktion</td>
+                            <td class="text-secondary small">@a.EntitaetName #@a.EntitaetId</td>
+                            <td class="text-muted small font-monospace" style="max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@a.NeuWerteJson</td>
                         </tr>
                     }
                 </tbody>
