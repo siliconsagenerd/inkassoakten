@@ -1,18 +1,24 @@
 @page "/"
 
-<PageTitle>InkassoAkten</PageTitle>
+<PageTitle>InkassoAkten · Übersicht</PageTitle>
 
-<div class="container py-5">
-    <h1 class="display-5 fw-bold">InkassoAkten</h1>
-    <p class="lead text-muted">Deterministisches Forderungs- und Aktenmanagement für die deutsche Inkassobearbeitung.</p>
-    <hr class="my-4" />
-    <p class="mb-3">
-        Fertige Demo-Anwendung: Aktenverwaltung, Zahlungszuordnung (Vorschau),
-        Kontenblatt/Ledger, Audit-Trail, Altersstrukturanalyse (Aging-Report)
-        und Demo-PDF.
+<div class="py-4" style="max-width: 860px;">
+    <h1 class="h2 fw-bold mb-2">Forderungen nachvollziehbar verwalten.</h1>
+    <p class="lead text-secondary mb-4" style="font-size: 1.15rem;">
+        Deterministisches Forderungs- und Aktenmanagement für die deutsche Inkassobearbeitung.
     </p>
-    <a class="btn btn-primary" href="akten">Demo öffnen</a>
-    <p class="text-muted small mt-4">
-        Technische Demo mit synthetischen Daten — keine Rechtsberatung.
-    </p>
+
+    <div class="card p-4 mb-4 border-0 shadow-sm" style="background-color: #ffffff; border: 1px solid var(--border-color) !important;">
+        <p class="mb-3 text-secondary">
+            InkassoAkten bildet den Lebenszyklus offener Forderungen von der vorgerichtlichen Mahnung bis zum Ratenplan ab. Zahlungen werden deterministisch nach § 367 BGB (Kosten &rarr; Zinsen &rarr; Hauptforderung) verrechnet, jede Bewegung revisionssicher im Buchungsjournal protokolliert.
+        </p>
+        <div class="d-flex flex-wrap gap-2 pt-2">
+            <a class="btn btn-primary px-3" href="akten">Demo öffnen</a>
+            <a class="btn btn-outline-secondary px-3" href="berichte">Altersstruktur ansehen</a>
+        </div>
+    </div>
+
+    <div class="p-3 rounded text-muted small" style="background-color: #edf2f5; border-left: 3px solid var(--accent);">
+        <strong>Öffentliche Demo:</strong> Bereitgestellt mit synthetischen Testdaten im reinen Lesemodus. Zahlungsverrechnungen können in der Aktenansicht simuliert werden (Vorschau ohne Persistierung).
+    </div>
 </div>

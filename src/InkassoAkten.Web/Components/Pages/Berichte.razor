@@ -4,49 +4,84 @@
 @using System.Globalization
 @inject IAgingReportService ReportService
 
-<PageTitle>Berichte</PageTitle>
+<PageTitle>InkassoAkten · Altersstruktur offener Forderungen</PageTitle>
 
-<h1>Altersstruktur offener Forderungen</h1>
+<div class="d-flex justify-content-between align-items-baseline mb-3">
+    <div>
+        <h1 class="h3 fw-bold mb-1">Altersstruktur offener Forderungen</h1>
+        <p class="text-secondary small mb-0">Fälligkeitsanalyse der offenen Forderungen nach Verzugsdauer (Stichtag: heute UTC).</p>
+    </div>
+    @if (!isLoading && rows.Count > 0)
+    {
+        <div class="text-secondary small">
+            Gesamtsaldo: <strong class="text-dark tabular-nums">@rows.Sum(r => r.Gesamtsaldo).ToString("C", de)</strong>
+        </div>
+    }
+</div>
 
 @if (isLoading)
 {
-    <p>Laden…</p>
+    <div class="p-4 text-center text-secondary small bg-white rounded border" style="border-color: var(--border-color) !important;">
+        Lade Altersstruktur…
+    </div>
 }
 else if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="alert alert-danger">@errorMessage</div>
+    <div class="alert alert-danger small">@errorMessage</div>
 }
 else if (rows.Count == 0)
 {
-    <div class="alert alert-secondary">Keine Daten vorhanden.</div>
+    <div class="p-4 text-center text-secondary small bg-white rounded border" style="border-color: var(--border-color) !important;">
+        Keine offenen Forderungen für die Altersstrukturanalyse vorhanden.
+    </div>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Akte</th>
-                <th>Schuldner</th>
-                <th>Mandant</th>
-                <th>Bucket</th>
-                <th>Tage</th>
-                <th>Gesamtsaldo</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var r in rows)
-            {
+    <div class="table-responsive bg-white rounded shadow-sm mb-3" style="border: 1px solid var(--border-color);">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
                 <tr>
-                    <td>@r.Akte</td>
-                    <td>@r.Schuldner</td>
-                    <td>@r.Mandant</td>
-                    <td>@r.Altersbucket</td>
-                    <td>@r.TageUeberfaellig</td>
-                    <td>@r.Gesamtsaldo.ToString("C", de)</td>
+                    <th scope="col" style="width: 140px;">Aktenzeichen</th>
+                    <th scope="col">Schuldner</th>
+                    <th scope="col">Mandant</th>
+                    <th scope="col" style="width: 130px;">Fälligkeitsbereich</th>
+                    <th scope="col" class="text-end" style="width: 90px;">Tage</th>
+                    <th scope="col" class="text-end" style="width: 140px;">Gesamtsaldo</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var r in rows)
+                {
+                    <tr>
+                        <td>
+                            <span class="fw-semibold font-monospace small">@r.Akte</span>
+                        </td>
+                        <td class="fw-medium">@r.Schuldner</td>
+                        <td class="text-secondary">@r.Mandant</td>
+                        <td>
+                            <span class="badge-status @GetBucketBadgeClass(r.Altersbucket)">
+                                @r.Altersbucket
+                            </span>
+                        </td>
+                        <td class="text-end tabular-nums text-secondary small">
+                            @(r.TageUeberfaellig > 0 ? $"{r.TageUeberfaellig} d" : "–")
+                        </td>
+                        <td class="text-end tabular-nums fw-semibold">
+                            @r.Gesamtsaldo.ToString("C", de)
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot class="border-top-2">
+                <tr class="fw-bold" style="background-color: #f7f9fa;">
+                    <td colspan="5" class="text-end">Summe offener Forderungen:</td>
+                    <td class="text-end tabular-nums" style="color: var(--accent);">
+                        @rows.Sum(r => r.Gesamtsaldo).ToString("C", de)
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
 }
 
 @code {
@@ -69,5 +104,14 @@ else
         {
             isLoading = false;
         }
+    }
+
+    private string GetBucketBadgeClass(string bucket)
+    {
+        if (bucket.Contains("0-30") || bucket.Contains("Nicht"))
+            return "badge-status-aktenanlage";
+        if (bucket.Contains("31-60") || bucket.Contains("61-90"))
+            return "badge-status-mahnung";
+        return "badge-status-gericht";
     }
 }

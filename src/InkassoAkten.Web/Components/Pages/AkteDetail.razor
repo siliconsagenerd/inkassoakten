@@ -25,12 +25,25 @@ else if (akte is null)
 }
 else
 {
-    <h1>@akte.Aktenzeichen</h1>
-    <p class="text-muted">@akte.Mandant?.Firmenname · @akte.Schuldner?.NachnameOderFirma, @akte.Schuldner?.Vorname</p>
-
     <div class="mb-3">
-        <a class="btn btn-secondary me-2" href="/api/akten/@akte.AkteId/pdf" target="_blank">PDF herunterladen</a>
-        <span class="badge bg-secondary">@akte.AkteStatus</span>
+        <a class="text-secondary small text-decoration-none" href="/akten">
+            &larr; Zurück zu den Akten
+        </a>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 fw-bold mb-1">@akte.Aktenzeichen</h1>
+            <p class="text-secondary small mb-0">@akte.Mandant?.Firmenname · @akte.Schuldner?.NachnameOderFirma@(string.IsNullOrWhiteSpace(akte.Schuldner?.Vorname) ? "" : $", {akte.Schuldner.Vorname}")</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="/api/akten/@akte.AkteId/pdf" target="_blank">
+                PDF herunterladen
+            </a>
+            <span class="badge-status @GetStatusBadgeClass(akte.AkteStatus)">
+                @FormatStatus(akte.AkteStatus)
+            </span>
+        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(actionError))
@@ -44,22 +57,36 @@ else
 
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item"><button class="nav-link @(activeTab=="Uebersicht"?"active":"")" @onclick='() => activeTab="Uebersicht"'>Übersicht</button></li>
-        <li class="nav-item"><button class="nav-link @(activeTab=="Ledger"?"active":"")" @onclick='() => activeTab="Ledger"'>Ledger</button></li>
+        <li class="nav-item"><button class="nav-link @(activeTab=="Ledger"?"active":"")" @onclick='() => activeTab="Ledger"'>Buchungsjournal</button></li>
         <li class="nav-item"><button class="nav-link @(activeTab=="Raten"?"active":"")" @onclick='() => activeTab="Raten"'>Ratenplan</button></li>
-        <li class="nav-item"><button class="nav-link @(activeTab=="Audit"?"active":"")" @onclick='() => activeTab="Audit"'>Audit</button></li>
+        <li class="nav-item"><button class="nav-link @(activeTab=="Audit"?"active":"")" @onclick='() => activeTab="Audit"'>Prüfprotokoll</button></li>
         <li class="nav-item"><button class="nav-link @(activeTab=="Zahlung"?"active":"")" @onclick='() => activeTab="Zahlung"'>Zahlung</button></li>
     </ul>
 
     @if (activeTab == "Uebersicht")
     {
-        <table class="table">
-            <tbody>
-                <tr><th>Offene Kosten</th><td>@akte.OffeneKosten.ToString("C", de)</td></tr>
-                <tr><th>Offene Zinsen</th><td>@akte.OffeneZinsen.ToString("C", de)</td></tr>
-                <tr><th>Offene Hauptforderung</th><td>@akte.OffeneHauptforderung.ToString("C", de)</td></tr>
-                <tr><th>Gesamtsaldo</th><td><strong>@akte.Gesamtsaldo.ToString("C", de)</strong></td></tr>
-            </tbody>
-        </table>
+        <div class="card mb-4 bg-white" style="border: 1px solid var(--border-color);">
+            <div class="card-body py-3">
+                <div class="row text-center g-0">
+                    <div class="col-6 col-md-3 border-end">
+                        <div class="text-secondary small mb-1">Offene Kosten</div>
+                        <div class="fw-semibold tabular-nums">@akte.OffeneKosten.ToString("C", de)</div>
+                    </div>
+                    <div class="col-6 col-md-3 border-end">
+                        <div class="text-secondary small mb-1">Offene Zinsen</div>
+                        <div class="fw-semibold tabular-nums">@akte.OffeneZinsen.ToString("C", de)</div>
+                    </div>
+                    <div class="col-6 col-md-3 border-end">
+                        <div class="text-secondary small mb-1">Offene Hauptforderung</div>
+                        <div class="fw-semibold tabular-nums">@akte.OffeneHauptforderung.ToString("C", de)</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-secondary small mb-1">Gesamtsaldo</div>
+                        <div class="fw-bold tabular-nums" style="color: var(--accent); font-size: 1.15rem;">@akte.Gesamtsaldo.ToString("C", de)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         @if (isOperator)
         {
@@ -106,17 +133,23 @@ else
         {
             <table class="table table-sm">
                 <thead>
-                    <tr><th>Datum</th><th>Kosten</th><th>Zinsen</th><th>Hauptforderung</th><th>Gesamt</th></tr>
+                    <tr>
+                        <th>Datum</th>
+                        <th class="text-end">Kosten</th>
+                        <th class="text-end">Zinsen</th>
+                        <th class="text-end">Hauptforderung</th>
+                        <th class="text-end">Gesamt</th>
+                    </tr>
                 </thead>
                 <tbody>
                     @foreach (var b in buchungen)
                     {
                         <tr>
                             <td>@b.CreatedAtUtc.ToString("dd.MM.yyyy HH:mm", de)</td>
-                            <td>@b.BetragKosten.ToString("C", de)</td>
-                            <td>@b.BetragZinsen.ToString("C", de)</td>
-                            <td>@b.BetragHauptforderung.ToString("C", de)</td>
-                            <td>@((b.BetragKosten + b.BetragZinsen + b.BetragHauptforderung).ToString("C", de))</td>
+                            <td class="text-end tabular-nums">@b.BetragKosten.ToString("C", de)</td>
+                            <td class="text-end tabular-nums">@b.BetragZinsen.ToString("C", de)</td>
+                            <td class="text-end tabular-nums">@b.BetragHauptforderung.ToString("C", de)</td>
+                            <td class="text-end tabular-nums fw-semibold">@((b.BetragKosten + b.BetragZinsen + b.BetragHauptforderung).ToString("C", de))</td>
                         </tr>
                     }
                 </tbody>
@@ -180,30 +213,74 @@ else
     }
     else if (activeTab == "Zahlung")
     {
-        <div class="mb-3">
-            <label class="form-label">Betrag</label>
-            <input class="form-control" type="number" step="0.01" @bind="paymentAmount" @bind:event="oninput" @onchange="UpdatePreview" />
+        <div class="card mb-3 bg-white" style="border: 1px solid var(--border-color);">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold text-secondary mb-1" for="zahlung-betrag">Zahlungsbetrag</label>
+                        <input id="zahlung-betrag" class="form-control" type="number" step="0.01" min="0.01"
+                               @bind="paymentAmount" @bind:event="oninput" @onchange="UpdatePreview" />
+                        <div class="form-text small">Maximal der Gesamtsaldo der Akte.</div>
+                    </div>
+                    <div class="col-md-8">
+                        <p class="small text-secondary mb-0">
+                            Vorschau der Verrechnung nach § 367 BGB: Kosten &rarr; Zinsen &rarr; Hauptforderung.
+                            <strong>Diese Vorschau persistiert keine Änderungen.</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         @if (preview is not null)
         {
-            <div class="alert alert-info">
-                Vorschau: Kosten @preview.GetilgteKosten.ToString("C", de), Zinsen @preview.GetilgteZinsen.ToString("C", de), Hauptforderung @preview.GetilgteHauptforderung.ToString("C", de)
+            <div class="card mb-3 bg-white" style="border: 1px solid var(--border-color);">
+                <div class="card-body py-3">
+                    <div class="row text-center g-0">
+                        <div class="col-12 col-md-4 border-end mb-2 mb-md-0">
+                            <div class="text-secondary small mb-1">Aktueller Saldo</div>
+                            <div class="fw-semibold tabular-nums">@akte.Gesamtsaldo.ToString("C", de)</div>
+                            <div class="small text-muted tabular-nums">
+                                Kosten @akte.OffeneKosten.ToString("C", de) · Zinsen @akte.OffeneZinsen.ToString("C", de) · Hauptf. @akte.OffeneHauptforderung.ToString("C", de)
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 border-end mb-2 mb-md-0">
+                            <div class="text-secondary small mb-1">Verrechnung</div>
+                            <div class="fw-semibold tabular-nums" style="color: var(--accent);">@preview.Gesamtbetrag.ToString("C", de)</div>
+                            <div class="small text-muted tabular-nums">
+                                Kosten @preview.GetilgteKosten.ToString("C", de) · Zinsen @preview.GetilgteZinsen.ToString("C", de) · Hauptf. @preview.GetilgteHauptforderung.ToString("C", de)
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="text-secondary small mb-1">Neuer Saldo</div>
+                            <div class="fw-bold tabular-nums" style="color: var(--accent); font-size: 1.15rem;">@preview.NeuerSaldo.ToString("C", de)</div>
+                            <div class="small text-muted tabular-nums">
+                                Kosten @( (akte.OffeneKosten - preview.GetilgteKosten).ToString("C", de) ) · Zinsen @( (akte.OffeneZinsen - preview.GetilgteZinsen).ToString("C", de) ) · Hauptf. @( (akte.OffeneHauptforderung - preview.GetilgteHauptforderung).ToString("C", de) )
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (paymentAmount > 0m)
+        {
+            <div class="alert alert-warning small">
+                Betrag ungültig: muss positiv und darf den Gesamtsaldo von @akte.Gesamtsaldo.ToString("C", de) nicht überschreiten.
             </div>
         }
 
         @if (!string.IsNullOrWhiteSpace(paymentError))
         {
-            <div class="alert alert-danger">@paymentError</div>
+            <div class="alert alert-danger small">@paymentError</div>
         }
         @if (!string.IsNullOrWhiteSpace(paymentMessage))
         {
-            <div class="alert alert-success">@paymentMessage</div>
+            <div class="alert alert-success small">@paymentMessage</div>
         }
 
         @if (isOperator)
         {
-            <button class="btn btn-primary" @onclick="PostPayment" disabled="@(isPosting || paymentAmount <= 0m)">Zahlung verbuchen</button>
+            <button class="btn btn-primary" @onclick="PostPayment" disabled="@(isPosting || paymentAmount <= 0m || preview is null)">Zahlung verbuchen</button>
             @if (isPosting)
             {
                 <span class="ms-2">Verbuche…</span>
@@ -211,7 +288,7 @@ else
         }
         else
         {
-            <div class="alert alert-secondary">Zahlung verbuchen erfordert Operator-Anmeldung.</div>
+            <div class="alert alert-secondary small">Zahlung verbuchen erfordert Operator-Anmeldung.</div>
         }
     }
 }
@@ -369,4 +446,26 @@ else
     private Task Escalate() => RunAction(async () => { akte!.EskaliereZumGerichtlichenMahnverfahren(akte.HatAktivenNichtDefaultedRatenplan()); await Db.SaveChangesAsync(); });
     private Task MarkDone() => RunAction(async () => { akte!.MarkiereErledigt(); await Db.SaveChangesAsync(); });
     private Task Close() => RunAction(async () => { akte!.Schliesse(); await Db.SaveChangesAsync(); });
+
+    private string FormatStatus(AkteStatus s) => s switch
+    {
+        AkteStatus.Aktenanlage => "Aktenanlage",
+        AkteStatus.VorgerichtlicheMahnung => "Vorgerichtliche Mahnung",
+        AkteStatus.RatenplanAktiv => "Ratenplan aktiv",
+        AkteStatus.GerichtlichesMahnverfahren => "Gerichtliches Mahnverfahren",
+        AkteStatus.Erledigt => "Erledigt",
+        AkteStatus.Geschlossen => "Geschlossen",
+        _ => s.ToString()
+    };
+
+    private string GetStatusBadgeClass(AkteStatus s) => s switch
+    {
+        AkteStatus.Aktenanlage => "badge-status-aktenanlage",
+        AkteStatus.VorgerichtlicheMahnung => "badge-status-mahnung",
+        AkteStatus.RatenplanAktiv => "badge-status-ratenplan",
+        AkteStatus.GerichtlichesMahnverfahren => "badge-status-gericht",
+        AkteStatus.Erledigt => "badge-status-erledigt",
+        AkteStatus.Geschlossen => "badge-status-geschlossen",
+        _ => "badge-status-aktenanlage"
+    };
 }

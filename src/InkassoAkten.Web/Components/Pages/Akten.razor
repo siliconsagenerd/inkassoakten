@@ -6,95 +6,129 @@
 @using System.Globalization
 @inject InkassoAktenDbContext Db
 
-<PageTitle>Akten</PageTitle>
+<PageTitle>InkassoAkten · Aktenverzeichnis</PageTitle>
 
-<h1>Inkassoakten</h1>
+<div class="d-flex justify-content-between align-items-baseline mb-3">
+    <div>
+        <h1 class="h3 fw-bold mb-1">Aktenverzeichnis</h1>
+        <p class="text-secondary small mb-0">Übersicht aller laufenden und abgeschlossenen Inkassovorgänge.</p>
+    </div>
+    <div class="text-secondary small">
+        Gesamt: <strong class="text-dark">@totalCount</strong> Akten
+    </div>
+</div>
 
-<div class="mb-3 row g-2">
-    <div class="col-md-2">
-        <label class="form-label">Status</label>
-        <select class="form-select" @bind="statusFilter" @bind:after="ReloadAsync">
-            <option value="">Alle</option>
-            @foreach (var s in Enum.GetNames<AkteStatus>())
-            {
-                <option value="@s">@s</option>
-            }
-        </select>
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">Schuldner</label>
-        <input class="form-control" @bind="debtorFilter" @bind:event="oninput" />
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">Mandant</label>
-        <input class="form-control" @bind="creditorFilter" @bind:event="oninput" />
-    </div>
-    <div class="col-md-2">
-        <label class="form-label">Sortierung</label>
-        <select class="form-select" @bind="sortBy" @bind:after="ReloadAsync">
-            <option value="Aktenzeichen">Aktenzeichen</option>
-            <option value="Saldo">Saldo</option>
-            <option value="Faelligkeit">Fälligkeit</option>
-        </select>
-    </div>
-    <div class="col-md-2 d-flex align-items-end">
-        <div class="form-check me-3">
-            <input class="form-check-input" type="checkbox" @bind="overdueOnly" @bind:after="ReloadAsync" id="overdue" />
-            <label class="form-check-label" for="overdue">Überfällig</label>
+<div class="card p-3 mb-4 bg-white" style="border: 1px solid var(--border-color);">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Status</label>
+            <select class="form-select form-select-sm" @bind="statusFilter" @bind:after="ReloadAsync">
+                <option value="">Alle Status</option>
+                @foreach (var s in Enum.GetNames<AkteStatus>())
+                {
+                    <option value="@s">@FormatStatus(Enum.Parse<AkteStatus>(s))</option>
+                }
+            </select>
         </div>
-        <div class="form-check">
+        <div class="col-md-3">
+            <label class="form-label small fw-semibold text-secondary mb-1">Schuldner</label>
+            <input class="form-control form-select-sm" placeholder="Name oder Firma…" @bind="debtorFilter" @bind:event="oninput" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-semibold text-secondary mb-1">Mandant</label>
+            <input class="form-control form-select-sm" placeholder="Firmenname…" @bind="creditorFilter" @bind:event="oninput" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small fw-semibold text-secondary mb-1">Sortierung</label>
+            <select class="form-select form-select-sm" @bind="sortBy" @bind:after="ReloadAsync">
+                <option value="Aktenzeichen">Aktenzeichen</option>
+                <option value="Saldo">Saldo (absteigend)</option>
+                <option value="Faelligkeit">Fälligkeit</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-sm btn-primary flex-fill" @onclick="ReloadAsync" disabled="@isLoading">Filtern</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ResetFiltersAsync" disabled="@isLoading" title="Filter zurücksetzen">Zurücksetzen</button>
+        </div>
+    </div>
+    <div class="d-flex gap-4 mt-2 pt-2 border-top">
+        <div class="form-check form-check-inline small mb-0">
+            <input class="form-check-input" type="checkbox" @bind="overdueOnly" @bind:after="ReloadAsync" id="overdue" />
+            <label class="form-check-label text-secondary" for="overdue">Nur überfällige Forderungen</label>
+        </div>
+        <div class="form-check form-check-inline small mb-0">
             <input class="form-check-input" type="checkbox" @bind="openOnly" @bind:after="ReloadAsync" id="open" />
-            <label class="form-check-label" for="open">Offen</label>
+            <label class="form-check-label text-secondary" for="open">Nur offene Salden (> 0,00 €)</label>
         </div>
     </div>
 </div>
 
-<button class="btn btn-primary mb-3" @onclick="ReloadAsync" disabled="@isLoading">Filtern</button>
-
 @if (isLoading)
 {
-    <p>Laden…</p>
+    <div class="p-4 text-center text-secondary small bg-white rounded border" style="border-color: var(--border-color) !important;">
+        Lade Akten…
+    </div>
 }
 else if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="alert alert-danger">@errorMessage</div>
+    <div class="alert alert-danger small">@errorMessage</div>
 }
 else if (items.Count == 0)
 {
-    <div class="alert alert-secondary">Keine Akten gefunden.</div>
+    <div class="p-4 text-center text-secondary small bg-white rounded border" style="border-color: var(--border-color) !important;">
+        Keine Akten für die ausgewählten Filterkriterien gefunden.
+    </div>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Aktenzeichen</th>
-                <th>Mandant</th>
-                <th>Schuldner</th>
-                <th>Status</th>
-                <th>Saldo</th>
-                <th>Fälligkeit</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var a in items)
-            {
+    <div class="table-responsive bg-white rounded" style="border: 1px solid var(--border-color);">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
                 <tr>
-                    <td><a href="/akten/@a.AkteId">@a.Aktenzeichen</a></td>
-                    <td>@a.Mandant?.Firmenname</td>
-                    <td>@a.Schuldner?.NachnameOderFirma, @a.Schuldner?.Vorname</td>
-                    <td>@a.AkteStatus</td>
-                    <td>@a.Gesamtsaldo.ToString("C", de)</td>
-                    <td>@a.Forderung?.Faelligkeitsdatum.ToString("dd.MM.yyyy", de)</td>
+                    <th scope="col" style="width: 140px;">Aktenzeichen</th>
+                    <th scope="col">Mandant</th>
+                    <th scope="col">Schuldner</th>
+                    <th scope="col" style="width: 170px;">Status</th>
+                    <th scope="col" class="text-end" style="width: 130px;">Saldo</th>
+                    <th scope="col" class="text-end" style="width: 110px;">Fälligkeit</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var a in items)
+                {
+                    <tr>
+                        <td>
+                            <a class="fw-semibold text-decoration-none" href="/akten/@a.AkteId">@a.Aktenzeichen</a>
+                        </td>
+                        <td class="text-secondary">@a.Mandant?.Firmenname</td>
+                        <td>
+                            <span class="fw-medium">@a.Schuldner?.NachnameOderFirma</span>@(string.IsNullOrWhiteSpace(a.Schuldner?.Vorname) ? "" : $", {a.Schuldner.Vorname}")
+                        </td>
+                        <td>
+                            <span class="badge-status @GetStatusBadgeClass(a.AkteStatus)">
+                                @FormatStatus(a.AkteStatus)
+                            </span>
+                        </td>
+                        <td class="text-end tabular-nums fw-semibold">@a.Gesamtsaldo.ToString("C", de)</td>
+                        <td class="text-end tabular-nums text-secondary small">
+                            @(a.Forderung?.Faelligkeitsdatum.ToString("dd.MM.yyyy", de) ?? "–")
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
-    <div class="d-flex justify-content-between align-items-center">
-        <button class="btn btn-outline-secondary" @onclick="PreviousPage" disabled="@(page <= 1 || isLoading)">Zurück</button>
-        <span>Seite @(page) von @totalPages (@totalCount Akten)</span>
-        <button class="btn btn-outline-secondary" @onclick="NextPage" disabled="@(page >= totalPages || isLoading)">Weiter</button>
+    <div class="d-flex justify-content-between align-items-center mt-3 px-1">
+        <button class="btn btn-sm btn-outline-secondary px-3" @onclick="PreviousPage" disabled="@(page <= 1 || isLoading)">
+            &larr; Vorherige
+        </button>
+        <span class="small text-secondary">
+            Seite <strong class="text-dark">@(page)</strong> von <strong class="text-dark">@totalPages</strong> (@totalCount Vorgänge)
+        </span>
+        <button class="btn btn-sm btn-outline-secondary px-3" @onclick="NextPage" disabled="@(page >= totalPages || isLoading)">
+            Nächste &rarr;
+        </button>
     </div>
 }
 
@@ -120,6 +154,40 @@ else
     {
         await ReloadAsync();
     }
+
+    private async Task ResetFiltersAsync()
+    {
+        statusFilter = null;
+        debtorFilter = null;
+        creditorFilter = null;
+        overdueOnly = false;
+        openOnly = false;
+        sortBy = "Aktenzeichen";
+        page = 1;
+        await ReloadAsync();
+    }
+
+    private string FormatStatus(AkteStatus s) => s switch
+    {
+        AkteStatus.Aktenanlage => "Aktenanlage",
+        AkteStatus.VorgerichtlicheMahnung => "Vorgerichtliche Mahnung",
+        AkteStatus.RatenplanAktiv => "Ratenplan aktiv",
+        AkteStatus.GerichtlichesMahnverfahren => "Gerichtliches Mahnverfahren",
+        AkteStatus.Erledigt => "Erledigt",
+        AkteStatus.Geschlossen => "Geschlossen",
+        _ => s.ToString()
+    };
+
+    private string GetStatusBadgeClass(AkteStatus s) => s switch
+    {
+        AkteStatus.Aktenanlage => "badge-status-aktenanlage",
+        AkteStatus.VorgerichtlicheMahnung => "badge-status-mahnung",
+        AkteStatus.RatenplanAktiv => "badge-status-ratenplan",
+        AkteStatus.GerichtlichesMahnverfahren => "badge-status-gericht",
+        AkteStatus.Erledigt => "badge-status-erledigt",
+        AkteStatus.Geschlossen => "badge-status-geschlossen",
+        _ => "badge-status-aktenanlage"
+    };
 
     private async Task ReloadAsync()
     {
