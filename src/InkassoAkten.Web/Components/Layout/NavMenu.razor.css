@@ -7,13 +7,17 @@
 
 .app-nav-link {
     display: inline-block;
-    padding: 0.35rem 0.7rem;
+    padding: 0.5rem 0.85rem;
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--text-secondary);
     text-decoration: none;
     border-radius: var(--radius-sm);
     transition: background-color 0.12s ease, color 0.12s ease;
+    min-height: 44px;
+    line-height: 1.4;
+    display: inline-flex;
+    align-items: center;
 }
 
 .app-nav-link:hover {
@@ -26,6 +30,7 @@
     color: var(--accent);
     background-color: var(--accent-light);
     font-weight: 600;
+    box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .app-nav-link:focus-visible {

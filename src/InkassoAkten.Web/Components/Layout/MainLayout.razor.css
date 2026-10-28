@@ -31,10 +31,10 @@ main, .app-main {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 1.25rem;
-    height: 3.25rem;
+    height: 2.75rem;
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1.25rem;
     flex-wrap: wrap;
 }
 
