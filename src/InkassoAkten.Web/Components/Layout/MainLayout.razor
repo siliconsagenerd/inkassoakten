@@ -9,6 +9,8 @@
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @inject PersistentComponentState ApplicationState
 
+<a class="skip-link" href="#main-content">Zum Hauptinhalt springen</a>
+
 <div class="demo-disclaimer" role="note">
     Technische Demo mit synthetischen Daten — keine Rechtsberatung.
 </div>
@@ -40,7 +42,7 @@
     </div>
 </header>
 
-<main class="app-main">
+<main class="app-main" id="main-content" tabindex="-1">
     <article class="content px-4">
         @Body
     </article>
