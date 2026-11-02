@@ -21,8 +21,8 @@
 <div class="card p-3 mb-4 bg-white" style="border: 1px solid var(--border-color);">
     <div class="row g-2 align-items-end">
         <div class="col-md-2">
-            <label class="form-label small fw-semibold text-secondary mb-1">Status</label>
-            <select class="form-select form-select-sm" @bind="statusFilter" @bind:after="ReloadAsync">
+            <label class="form-label small fw-semibold text-secondary mb-1" for="status-filter">Status</label>
+            <select class="form-select form-select-sm" id="status-filter" @bind="statusFilter" @bind:after="ReloadAsync">
                 <option value="">Alle Status</option>
                 @foreach (var s in Enum.GetNames<AkteStatus>())
                 {
@@ -31,16 +31,16 @@
             </select>
         </div>
         <div class="col-md-3">
-            <label class="form-label small fw-semibold text-secondary mb-1">Schuldner</label>
-            <input class="form-control form-control-sm" placeholder="Name oder Firma…" @bind="debtorFilter" @bind:event="oninput" />
+            <label class="form-label small fw-semibold text-secondary mb-1" for="debtor-filter">Schuldner</label>
+            <input class="form-control form-control-sm" id="debtor-filter" placeholder="Name oder Firma…" @bind="debtorFilter" @bind:event="oninput" />
         </div>
         <div class="col-md-3">
-            <label class="form-label small fw-semibold text-secondary mb-1">Mandant</label>
-            <input class="form-control form-control-sm" placeholder="Firmenname…" @bind="creditorFilter" @bind:event="oninput" />
+            <label class="form-label small fw-semibold text-secondary mb-1" for="creditor-filter">Mandant</label>
+            <input class="form-control form-control-sm" id="creditor-filter" placeholder="Firmenname…" @bind="creditorFilter" @bind:event="oninput" />
         </div>
         <div class="col-md-2">
-            <label class="form-label small fw-semibold text-secondary mb-1">Sortierung</label>
-            <select class="form-select form-select-sm" @bind="sortBy" @bind:after="ReloadAsync">
+            <label class="form-label small fw-semibold text-secondary mb-1" for="sort-by">Sortierung</label>
+            <select class="form-select form-select-sm" id="sort-by" @bind="sortBy" @bind:after="ReloadAsync">
                 <option value="Aktenzeichen">Aktenzeichen</option>
                 <option value="Saldo">Saldo (absteigend)</option>
                 <option value="Faelligkeit">Fälligkeit</option>
@@ -83,6 +83,7 @@ else
 {
     <div class="table-responsive bg-white rounded" style="border: 1px solid var(--border-color);">
         <table class="table table-hover align-middle mb-0">
+            <caption class="visually-hidden">Aktenverzeichnis mit Filtern</caption>
             <thead>
                 <tr>
                     <th scope="col" style="width: 140px;">Aktenzeichen</th>
