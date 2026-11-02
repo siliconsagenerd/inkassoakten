@@ -31,7 +31,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.Cookie.HttpOnly = true;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SameSite = SameSiteMode.Strict;
     });
 
 builder.Services.AddAuthorization(options =>
@@ -118,13 +118,26 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["Content-Security-Policy"] =
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none'; " +
+        "base-uri 'self'; form-action 'self'";
+    headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
+    headers["X-Frame-Options"] = "DENY";
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.UseRateLimiter();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "InkassoAkten" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 // PDF Download Endpoint
 app.MapGet("/api/akten/{id:int}/pdf", async (int id, InkassoAktenDbContext db, IPdfStatementService pdfService) =>

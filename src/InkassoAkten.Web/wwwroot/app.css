@@ -125,6 +125,15 @@ a:hover, .btn-link:hover {
 .badge-status-erledigt { background-color: #e4f0e9; color: #1f5a36; border-color: #cce5d4; }
 .badge-status-geschlossen { background-color: #ececee; color: #4a4a52; border-color: #dcdce0; }
 
+/* Touch targets: ensure interactive controls meet 44px minimum on small screens. */
+@media (max-width: 576px) {
+    .btn, .btn-sm, .btn-outline-primary, .btn-outline-secondary, .btn-primary {
+        min-height: 44px;
+        padding-top: 0.625rem;
+        padding-bottom: 0.625rem;
+    }
+}
+
 .balance-breakdown {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);

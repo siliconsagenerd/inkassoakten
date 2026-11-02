@@ -32,3 +32,11 @@ jobs:
 
     - name: Publish Web Project
       run: dotnet publish src/InkassoAkten.Web/InkassoAkten.Web.csproj --no-build --configuration Release --output ./publish
+
+    - name: Dependency vulnerability scan
+      run: |
+        dotnet list InkassoAkten.sln package --vulnerable --include-transitive 2>&1 | tee vuln-report.txt
+        if grep -qi "has the following vulnerable packages" vuln-report.txt; then
+          echo "Vulnerable packages detected:"; cat vuln-report.txt; exit 1
+        fi
+      continue-on-error: true
