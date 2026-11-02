@@ -43,6 +43,18 @@ SA_PASSWORD=... ./backup.sh
 
 Copy the resulting `.bak` to the approved off-host directory (oldmac `/backups/inkassoakten` or equivalent). Keep last 7 on the VM.
 
+## 4b. Automated backup (cron)
+
+Install on the VM (run once, as the deploy user):
+
+```bash
+crontab -e
+# daily 02:15 UTC backup, log to /var/log/inkassoakten-backup.log
+15 2 * * * cd /opt/inkassoakten/deploy && SA_PASSWORD='...' GCS_BUCKET='gs://inkassoakten-demo-backups' ./backup.sh >> /var/log/inkassoakten-backup.log 2>&1
+```
+
+Verify with `crontab -l` and inspect `/var/log/inkassoakten-backup.log` after the first run. The script keeps the last 7 `.bak` files on the VM and uploads to GCS when `GCS_BUCKET` is set.
+
 ## 5. Restore test (isolated DB, never the live DB)
 
 ```bash
